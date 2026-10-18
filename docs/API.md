@@ -39,7 +39,7 @@ Legend: 🌐 public (rate-limited) · 🏪 business admin · 👑 super admin.
 | `GET /store/:slug/categories` 🌐 | `[{ name, image? }]`: the business's categories that currently have at least one non-draft product, sorted by name. |
 | `POST /store/:slug/coupons/validate` 🌐 | `{ code, subtotal }` → `{ code, discount }`. Doesn't use the code up. |
 | `POST /store/:slug/orders` 🌐 | Place an order (below). Returns the `Order` including `publicToken`. |
-| `GET /store/orders/:publicToken` 🌐 | The order plus the store, for the confirmation and invoice pages. |
+| `GET /store/orders/:publicToken` 🌐 | The order plus the store, for the confirmation and invoice pages. Looked up by the unguessable token only (the order id never works). |
 | `POST /track` 🌐 | Batched events: `{ scope: businessId \| "platform", visitorId, sessionId, events: [{ type: "page"\|"product"\|"add_to_cart"\|"checkout", path, productId?, source, device, country }] }`. Fire-and-forget (202); upsert into `AnalyticsDay` by `(scope, date)`. Count a visitor once per day and a session once per sessionId. |
 
 **Place order**: body `{ customer: { name, email, phone }, shippingAddress, notes?, paymentMethod, couponCode?, items: [{ productId, variantId?, qty }] }`. In one transaction:
@@ -48,7 +48,7 @@ Legend: 🌐 public (rate-limited) · 🏪 business admin · 👑 super admin.
 3. For each line: product exists, belongs to the business and isn't a draft ("One of the items in your cart is no longer available."); qty is a whole number ≥ 1; with variants, `variantId` is required ("Please choose an option for {product}.") and its stock is checked ("{name} ({variant}) is sold out." / "Only {n} of {name} ({variant}) left in stock."); without variants, out-of-stock or insufficient stock gives "{name} is sold out." / "Only {n} of {name} left in stock."
 4. Item price = variant price if set, else product price. Snapshot `name` ("Name (Variant)") and `price` on the `OrderItem`.
 5. Business coupon: must be ACTIVE, unexpired and under `maxUses`, and the subtotal must meet `minOrder`. Messages: "That code isn't valid." / "That code has expired." / "That code has been fully used." / "Spend at least {amount} to use this code." Discount = percent of subtotal or the fixed amount, never more than the subtotal. Increment `usedCount`.
-6. `total = subtotal - discount`. `paymentStatus = PAID` only for card payments that the payment provider confirmed; otherwise `UNPAID`. `status = PENDING`.
+6. `total = subtotal - discount`. `paymentStatus = PAID` only for card payments that the payment provider confirmed (until a provider is wired in, `DEMO_CARD_PAYMENTS=true` marks card orders paid, mirroring the mock); otherwise `UNPAID`. `status = PENDING`.
 7. Customer: find by `(businessId, lower(email))`, otherwise create. Order number: increment `Business.orderSeq` atomically and format `#` + first two letters of the slug upper-cased + the sequence (e.g. `#AD1180`).
 8. Decrement variant and product stock with the guarded update, add to `product.sold`, and set product `OUT_OF_STOCK` when stock reaches 0. If the order is paid, add to the customer's `ordersCount` and `totalSpent`.
 
@@ -85,12 +85,14 @@ Legend: 🌐 public (rate-limited) · 🏪 business admin · 👑 super admin.
 ### Orders, sales, customers
 | Endpoint | Notes |
 | --- | --- |
-| `GET /business/orders` | `q` (number or customer), `status`, `channel`, `from`, `to`. |
+| `GET /business/orders` | `q` (number or customer), `status`, `paymentStatus`, `channel`, `from`, `to`, `page`, `limit`. Total in the `X-Total-Count` header. |
 | `PATCH /business/orders/:id/status` | `{ status }`. `REFUNDED` sets payment to `REFUNDED`; `CANCELLED` sets it to `UNPAID`; moving an unpaid order to any status other than pending marks it `PAID`. **Also**: return stock when moving to cancelled or refunded, and recompute the customer's totals. |
 | `POST /business/orders/:id/receipt` | Sends the receipt (queue the email) and sets `receiptSentAt`. |
 | `POST /business/sales` | Record a sale made outside the storefront (below). |
 | `GET /business/customers` | `q`, `groupId`. Each row: `id, name, email, phone, city, orders, totalSpent, joinedAt`. |
 | `GET /business/customers/:id` | `CustomerDetail`: the customer, their orders (newest first), group names, average paid order value, last order date and last delivery address. |
+
+Orders keep a nullable `customerId` (walk-in sales have none; the API returns `"walk_in"` for them, and deleting a customer keeps their orders). Reopening a cancelled or refunded order takes the stock again and fails with the sold-out message if it's gone.
 
 **Record a sale**: body `{ customerId? | newCustomer?: { name, phone?, email? }, items: [{ productId, variantId?, qty, price? }], channel, paymentMethod, paid, handedOver, discount?, notes? }`. Rules: business must be `ACTIVE` or `TRIAL` ("Your store isn't active, so new sales can't be recorded."); at least one item ("Add at least one product to the sale."); monthly order limit ("You've reached this month's order limit on your plan. Upgrade to record more sales."); the same stock checks as checkout; a custom `price` overrides the item price; `discount` is a flat amount and can't exceed the subtotal ("The discount can't be more than the sale total."); an unknown `customerId` gives "That customer no longer exists."; a provided email must look valid ("Enter a valid customer email, or leave it blank."); a missing customer becomes a walk-in. Status is `DELIVERED` when `handedOver`, otherwise `PROCESSING`; payment is `PAID` or `UNPAID` from `paid`. Stock, `sold` and customer totals update as in checkout.
 

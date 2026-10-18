@@ -99,3 +99,62 @@ export const toProduct = (p: ProductRow) => {
     createdAt: iso(p.createdAt)!,
   };
 };
+
+// ---------- storefront, orders, customers ----------
+import type { Business, Customer, Order, OrderItem } from "@prisma/client";
+
+export const toPublicStore = (b: Business) => ({
+  id: b.id,
+  name: b.name,
+  slug: b.slug,
+  category: b.category,
+  description: b.description,
+  phone: b.phone,
+  city: b.city,
+  country: b.country,
+  brandColor: b.brandColor,
+  ...(b.theme ? { theme: b.theme } : {}),
+  ...(b.logoUrl ? { logo: b.logoUrl } : {}),
+  currency: b.currency,
+});
+
+export const toOrder = (o: Order & { items?: OrderItem[] }, opts: { publicToken?: boolean } = {}) => ({
+  id: o.id,
+  businessId: o.businessId,
+  number: o.number,
+  customerId: o.customerId ?? "walk_in",
+  customerName: o.customerName,
+  items: (o.items ?? []).map((i) => ({
+    productId: i.productId ?? "",
+    ...(i.variantId ? { variantId: i.variantId } : {}),
+    name: i.name,
+    qty: i.qty,
+    price: num(i.price),
+  })),
+  total: num(o.total),
+  status: lower(o.status),
+  paymentStatus: lower(o.paymentStatus),
+  placedAt: iso(o.placedAt)!,
+  ...(o.customerEmail ? { customerEmail: o.customerEmail } : {}),
+  ...(o.customerPhone ? { customerPhone: o.customerPhone } : {}),
+  ...(o.shippingAddress ? { shippingAddress: o.shippingAddress } : {}),
+  ...(o.notes ? { notes: o.notes } : {}),
+  ...(o.paymentMethod ? { paymentMethod: lower(o.paymentMethod) } : {}),
+  channel: lower(o.channel),
+  ...(o.couponCode ? { couponCode: o.couponCode } : {}),
+  ...(num(o.discount) > 0 ? { discount: num(o.discount) } : {}),
+  ...(o.receiptSentAt ? { receiptSentAt: iso(o.receiptSentAt) } : {}),
+  ...(opts.publicToken ? { publicToken: o.publicToken } : {}),
+});
+
+export const toCustomer = (c: Customer) => ({
+  id: c.id,
+  businessId: c.businessId,
+  name: c.name,
+  email: c.email ?? "",
+  phone: c.phone,
+  city: c.city,
+  orders: c.ordersCount,
+  totalSpent: num(c.totalSpent),
+  joinedAt: iso(c.createdAt)!,
+});

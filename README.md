@@ -1,6 +1,6 @@
 # Retailr API
 
-Backend for [Retailr](https://github.com/olumuyiwaa/afrohub-v2), a multi-tenant SaaS where small businesses subscribe, get a public storefront at `/s/<slug>` and run it from a business admin, with a super admin for the platform. This repo starts from a spec derived from the frontend's domain types (`src/types/saas.ts`) and mock services (`src/services/*.ts`), so the API matches what every screen already expects.
+Backend for [Retailr](https://github.com/olumuyiwaa/retailr_frontend), a multi-tenant SaaS where small businesses subscribe, get a public storefront at `/s/<slug>` and run it from a business admin, with a super admin for the platform. This repo starts from a spec derived from the frontend's domain types (`src/types/saas.ts`) and mock services (`src/services/*.ts`), so the API matches what every screen already expects.
 
 **Status:** foundation and auth are built and tested (NestJS, Prisma 6, PostgreSQL). Next: storefront and orders (see "Suggested build order").
 
@@ -13,7 +13,8 @@ Backend for [Retailr](https://github.com/olumuyiwaa/afrohub-v2), a multi-tenant 
 | Catalogue: categories (cover picture, rename keeps products, delete uncategorises), products (variants with stable ids, photos, details, plan product limit enforced under concurrency), filters and paging | `src/catalogue` |
 | Image uploads: signed PUT URLs for S3-compatible storage (or a local driver for development), type and size limits, files tied to their business | `src/storage` |
 | Full PostgreSQL schema, first migration, seed (plans, super admin, discount codes) | `prisma/` |
-| 47 end-to-end tests against a real database (including tenant isolation) | `test/` |
+| Storefront and orders: public store, coupon check, `placeOrder` (per-business advisory lock, guarded stock and coupon updates, atomic order numbers, plan limits), order status changes with restock, record a sale, customers and detail | `src/store`, `src/orders` |
+| 73 end-to-end tests against a real database (including tenant isolation) | `test/` |
 
 ## Run it
 

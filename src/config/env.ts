@@ -22,6 +22,8 @@ export class Env {
   @IsOptional() @IsString() S3_ENDPOINT?: string;
   @IsOptional() @IsString() S3_ACCESS_KEY_ID?: string;
   @IsOptional() @IsString() S3_SECRET_ACCESS_KEY?: string;
+  /** "true": a card order counts as paid at once (demo). Leave false until a payment provider is connected. */
+  @IsOptional() @IsIn(["true", "false"]) DEMO_CARD_PAYMENTS?: string;
   @IsOptional() @IsString() SEED_SUPER_ADMIN_EMAIL?: string;
   @IsOptional() @IsString() SEED_SUPER_ADMIN_PASSWORD?: string;
 }

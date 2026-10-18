@@ -460,8 +460,9 @@ model Order {
   business      Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
   /// "#AD1180": two letters of the slug plus Business.orderSeq. Unique per business.
   number        String
-  customerId    String
-  customer      Customer      @relation(fields: [customerId], references: [id])
+  /// Null for walk-in sales recorded without a customer.
+  customerId    String?
+  customer      Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
   /// Snapshot of what the shopper typed at checkout.
   customerName  String
   customerEmail String?

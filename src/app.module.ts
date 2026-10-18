@@ -10,6 +10,8 @@ import { AuthModule } from "./auth/auth.module";
 import { PlansModule } from "./plans/plans.module";
 import { StorageModule } from "./storage/storage.module";
 import { CatalogueModule } from "./catalogue/catalogue.module";
+import { OrdersModule } from "./orders/orders.module";
+import { StoreModule } from "./store/store.module";
 import { HealthController } from "./health/health.controller";
 
 @Module({
@@ -21,6 +23,8 @@ import { HealthController } from "./health/health.controller";
     PlansModule,
     StorageModule,
     CatalogueModule,
+    OrdersModule,
+    StoreModule,
   ],
   controllers: [HealthController],
   providers: [
