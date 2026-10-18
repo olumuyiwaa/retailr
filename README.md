@@ -17,7 +17,8 @@ Backend for [Retailr](https://github.com/olumuyiwaa/retailr_frontend), a multi-t
 | Business extras: coupons, customer groups (manual and rule-based, computed at read time), messages (recorded; delivery TODO), team invites with plan limits, profile and theme | `src/business` |
 | Dashboard overview and sales report (`GET /business/overview`, `GET /business/reports/sales?days=7\|30\|90\|365`): paid-order revenue, trends vs the previous period, splits, leaders | `src/business/reports.*` |
 | Billing: usage (including real upload size), invoices, change plan with platform discount codes (one redemption per business, last use serialised, carried-code rules) | `src/billing` |
-| 106 end-to-end tests against a real database (including tenant isolation) | `test/` |
+| Platform admin: overview (MRR, signups, churn, GMV), businesses with approve/suspend/cancel, subscriptions, invoices, plans, discount codes | `src/platform` |
+| 121 end-to-end tests against a real database (including tenant isolation) | `test/` |
 
 ## Run it
 

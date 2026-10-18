@@ -57,7 +57,8 @@ export const toSubscription = (s: Subscription & { planCoupon?: { code: string }
   ...(s.trialEndsAt ? { trialEndsAt: iso(s.trialEndsAt) } : {}),
   ...(s.cancelledAt ? { cancelledAt: iso(s.cancelledAt) } : {}),
   ...(s.planCouponId && s.planCoupon ? { couponCode: s.planCoupon.code } : {}),
-  ...(s.discount != null && s.planCouponId ? { discount: num(s.discount) } : {}),
+  // kept even if the code was later deleted: the discount already in the price stays
+  ...(s.discount != null ? { discount: num(s.discount) } : {}),
 });
 
 export const toInvoice = (i: Invoice) => ({

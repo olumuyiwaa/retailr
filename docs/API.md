@@ -138,6 +138,8 @@ Change plan: validate the code first so a bad one changes nothing. Switching pla
 
 ## Platform admin (`/platform/*`, 👑)
 
+Implemented except analytics. List endpoints take `page` and `limit` (default 50, max 200) and return the total in `X-Total-Count`. Re-activating a business also clears its subscription's `cancelledAt`. `PUT /platform/plans/:id` creates the plan when the id is new; price changes don't touch what existing subscribers already pay. A deleted discount code leaves the discount already in a subscription's price in place (`discount` stays, `couponCode` goes).
+
 | Endpoint | Notes |
 | --- | --- |
 | `GET /platform/overview` | `PlatformOverview`: MRR with change, business counts by status, sign-ups in the last 30 days, churn, GMV, 12-month MRR and sign-up series, plan distribution, recent sign-ups, recent invoices. MRR counts non-trial, non-cancelled subscriptions, with yearly amounts divided by 12, and uses the discounted amount. |
