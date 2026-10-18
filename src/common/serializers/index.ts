@@ -158,3 +158,74 @@ export const toCustomer = (c: Customer) => ({
   totalSpent: num(c.totalSpent),
   joinedAt: iso(c.createdAt)!,
 });
+
+// ---------- business extras ----------
+import type { Coupon, CustomerGroup, Message, TeamMember } from "@prisma/client";
+
+export const toCoupon = (c: Coupon) => ({
+  id: c.id,
+  businessId: c.businessId,
+  code: c.code,
+  type: lower(c.type),
+  value: num(c.value),
+  ...(c.minOrder != null ? { minOrder: num(c.minOrder) } : {}),
+  ...(c.maxUses != null ? { maxUses: c.maxUses } : {}),
+  usedCount: c.usedCount,
+  ...(c.expiresAt ? { expiresAt: iso(c.expiresAt) } : {}),
+  status: lower(c.status),
+  createdAt: iso(c.createdAt)!,
+});
+
+export const toGroup = (g: CustomerGroup & { members?: { customerId: string }[] }, memberCount?: number) => ({
+  id: g.id,
+  businessId: g.businessId,
+  name: g.name,
+  ...(g.description ? { description: g.description } : {}),
+  kind: lower(g.kind),
+  memberIds: g.kind === "MANUAL" ? (g.members ?? []).map((m) => m.customerId) : [],
+  ...(g.kind === "AUTO" && g.ruleType && g.ruleValue != null ? { rule: { type: lower(g.ruleType), value: num(g.ruleValue) } } : {}),
+  createdAt: iso(g.createdAt)!,
+  ...(memberCount !== undefined ? { memberCount } : {}),
+});
+
+export const toMessage = (m: Message) => ({
+  id: m.id,
+  businessId: m.businessId,
+  channel: lower(m.channel),
+  ...(m.channel === "EMAIL" && m.subject ? { subject: m.subject } : {}),
+  body: m.body,
+  audienceLabel: m.audienceLabel,
+  recipientCount: m.recipientCount,
+  sentAt: iso(m.sentAt)!,
+});
+
+export const toTeamMember = (t: TeamMember) => ({
+  id: t.id,
+  businessId: t.businessId,
+  name: t.name,
+  email: t.email,
+  role: lower(t.role),
+  status: lower(t.status),
+  joinedAt: iso(t.createdAt)!,
+});
+
+export const toBusiness = (b: Business, stats: { products: number; orders: number; customers: number; revenue: number }) => ({
+  id: b.id,
+  name: b.name,
+  slug: b.slug,
+  category: b.category,
+  ownerName: b.ownerName,
+  ownerEmail: b.ownerEmail,
+  phone: b.phone,
+  country: b.country,
+  city: b.city,
+  brandColor: b.brandColor,
+  ...(b.theme ? { theme: b.theme } : {}),
+  ...(b.logoUrl ? { logo: b.logoUrl } : {}),
+  currency: b.currency,
+  description: b.description,
+  status: lower(b.status),
+  planId: b.planId,
+  joinedAt: iso(b.createdAt)!,
+  stats,
+});

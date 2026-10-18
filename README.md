@@ -14,7 +14,8 @@ Backend for [Retailr](https://github.com/olumuyiwaa/retailr_frontend), a multi-t
 | Image uploads: signed PUT URLs for S3-compatible storage (or a local driver for development), type and size limits, files tied to their business | `src/storage` |
 | Full PostgreSQL schema, first migration, seed (plans, super admin, discount codes) | `prisma/` |
 | Storefront and orders: public store, coupon check, `placeOrder` (per-business advisory lock, guarded stock and coupon updates, atomic order numbers, plan limits), order status changes with restock, record a sale, customers and detail | `src/store`, `src/orders` |
-| 73 end-to-end tests against a real database (including tenant isolation) | `test/` |
+| Business extras: coupons, customer groups (manual and rule-based, computed at read time), messages (recorded; delivery TODO), team invites with plan limits, profile and theme | `src/business` |
+| 90 end-to-end tests against a real database (including tenant isolation) | `test/` |
 
 ## Run it
 

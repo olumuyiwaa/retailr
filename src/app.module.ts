@@ -5,6 +5,7 @@ import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import { validateEnv } from "./config/env";
 import { AllExceptionsFilter } from "./common/filters/all-exceptions.filter";
 import { JwtAuthGuard } from "./common/guards/jwt-auth.guard";
+import { BusinessModule } from "./business/business.module";
 import { PrismaModule } from "./prisma/prisma.module";
 import { AuthModule } from "./auth/auth.module";
 import { PlansModule } from "./plans/plans.module";
@@ -25,6 +26,7 @@ import { HealthController } from "./health/health.controller";
     CatalogueModule,
     OrdersModule,
     StoreModule,
+    BusinessModule,
   ],
   controllers: [HealthController],
   providers: [

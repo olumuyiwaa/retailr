@@ -109,6 +109,7 @@ Orders keep a nullable `customerId` (walk-in sales have none; the API returns `"
 **Group rules** (computed at read time, never stored): `SPENT_OVER` = total spent > value; `ORDERS_AT_LEAST` = orders ≥ value; `JOINED_WITHIN_DAYS` = joined within value days; `NO_ORDER_WITHIN_DAYS` = last order older than value days, or no order and joined longer ago than value days.
 
 ### Coupons, team, billing, profile
+Implemented so far: coupons, team, profile, groups and messages. `PUT` on a coupon or group replaces the editable fields (omitted optional fields are cleared). Unknown body fields are stripped, so slug, plan and status can't be changed through the profile. Messages are recorded but not yet delivered (no email/SMS provider); team invites store only a hashed token and don't send email yet.
 | Endpoint | Notes |
 | --- | --- |
 | `GET/POST/PUT/DELETE /business/coupons`, `PATCH /business/coupons/:id/status` | Code is upper-cased, 3–20 of A–Z, 0–9 and `-` ("Use 3–20 letters, numbers or dashes for the code."); value > 0 ("Enter a discount greater than zero."); percent ≤ 100 ("A percentage can't be more than 100."); unique per business ("You already have a code with that name."). |

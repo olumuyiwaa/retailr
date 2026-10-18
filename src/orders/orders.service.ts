@@ -2,13 +2,14 @@ import { Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { AppError } from "../common/errors";
 import { toCustomer, toOrder } from "../common/serializers";
+import { GroupsService } from "../business/groups.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { ListCustomersQuery, ListOrdersQuery, RecordSaleDto } from "./dto/orders.dto";
 import { holdsStock, OrderEngine } from "./order-engine.service";
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly prisma: PrismaService, private readonly engine: OrderEngine) {}
+  constructor(private readonly prisma: PrismaService, private readonly engine: OrderEngine, private readonly groups: GroupsService) {}
 
   async list(businessId: string, q: ListOrdersQuery) {
     const where: Prisma.OrderWhereInput = {
@@ -105,7 +106,7 @@ export class OrdersService {
     return {
       customer: toCustomer(customer),
       orders: orders.map((o) => toOrder(o)),
-      groups: [] as string[], // filled in once customer groups are built
+      groups: await this.groups.namesFor(businessId, id),
       avgOrder: paid.length ? paid.reduce((n, o) => n + Number(o.total), 0) / paid.length : 0,
       ...(orders[0] ? { lastOrderAt: orders[0].placedAt.toISOString() } : {}),
       ...(orders.find((o) => o.shippingAddress) ? { address: orders.find((o) => o.shippingAddress)!.shippingAddress } : {}),
