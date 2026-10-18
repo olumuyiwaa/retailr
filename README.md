@@ -2,7 +2,42 @@
 
 Backend for [Retailr](https://github.com/olumuyiwaa/afrohub-v2), a multi-tenant SaaS where small businesses subscribe, get a public storefront at `/s/<slug>` and run it from a business admin, with a super admin for the platform. This repo starts from a spec derived from the frontend's domain types (`src/types/saas.ts`) and mock services (`src/services/*.ts`), so the API matches what every screen already expects.
 
-**Status:** spec and Prisma schema only; the NestJS project is not scaffolded yet.
+**Status:** foundation and auth are built and tested (NestJS, Prisma 6, PostgreSQL). Next: catalogue, storefront and orders (see "Suggested build order").
+
+| Done | Where |
+| --- | --- |
+| Config validation (fails fast at boot), helmet, CORS, global validation, one error shape `{ statusCode, code, message }`, rate limiting, Swagger at `/docs` | `src/config`, `src/setup.ts`, `src/common` |
+| Auth: register (with platform discount codes), login, refresh-token rotation with replay detection, logout, `me`; argon2 passwords; global JWT guard with `@Public()` and `@Roles()`; suspended or cancelled businesses are locked out immediately, even with a token they already hold | `src/auth`, `src/common/guards` |
+| Tenant isolation: `prisma.forBusiness(id)` scopes every query on a tenant model and blocks cross-tenant writes | `src/prisma/tenant.ts` |
+| Public `GET /plans` and `POST /plan-coupons/validate` | `src/plans` |
+| Full PostgreSQL schema, first migration, seed (plans, super admin, discount codes) | `prisma/` |
+| 24 end-to-end tests against a real database (including tenant isolation) | `test/` |
+
+## Run it
+
+```bash
+cp .env.example .env            # then set JWT_ACCESS_SECRET and SEED_SUPER_ADMIN_PASSWORD
+npm install                     # also runs prisma generate
+npm run db:up                   # Postgres 16 via docker compose (or point DATABASE_URL at your own)
+npx prisma migrate deploy       # use `npm run prisma:migrate` while developing schema changes
+npm run seed
+npm run start:dev               # http://localhost:4000/api/v1, docs at /docs
+npm test                        # needs DATABASE_URL pointing at a migrated, seeded database
+```
+
+The Prisma client uses `engineType = "client"` with the `@prisma/adapter-pg` driver adapter, so there is no native query-engine binary to download.
+
+### Using the tenant client
+
+Everything a business admin does should go through `prisma.forBusiness(user.businessId)` (the id comes from the verified token, see `@CurrentUser()`), never the bare `prisma` client:
+
+```ts
+const db = this.prisma.forBusiness(user.businessId!);
+await db.category.findMany();                 // only this business's rows
+await db.category.create({ data: { name } }); // businessId is stamped for you
+```
+
+Child tables without a `businessId` (ProductImage, ProductVariant, OrderItem, CustomerGroupMember) must be reached through their parent, e.g. `db.product.findFirst({ where: { id }, include: { variants: true } })`.
 
 | File | What it is |
 | --- | --- |

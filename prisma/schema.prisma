@@ -6,7 +6,8 @@
 //  - timestamps are timestamptz (Prisma DateTime on Postgres).
 
 generator client {
-  provider = "prisma-client-js"
+  provider   = "prisma-client-js"
+  engineType = "client" // query compiler + driver adapter (@prisma/adapter-pg); no native engine binary
 }
 
 datasource db {
