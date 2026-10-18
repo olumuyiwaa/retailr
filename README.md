@@ -15,7 +15,8 @@ Backend for [Retailr](https://github.com/olumuyiwaa/retailr_frontend), a multi-t
 | Full PostgreSQL schema, first migration, seed (plans, super admin, discount codes) | `prisma/` |
 | Storefront and orders: public store, coupon check, `placeOrder` (per-business advisory lock, guarded stock and coupon updates, atomic order numbers, plan limits), order status changes with restock, record a sale, customers and detail | `src/store`, `src/orders` |
 | Business extras: coupons, customer groups (manual and rule-based, computed at read time), messages (recorded; delivery TODO), team invites with plan limits, profile and theme | `src/business` |
-| 90 end-to-end tests against a real database (including tenant isolation) | `test/` |
+| Dashboard overview and sales report (`GET /business/overview`, `GET /business/reports/sales?days=7\|30\|90\|365`): paid-order revenue, trends vs the previous period, splits, leaders | `src/business/reports.*` |
+| 96 end-to-end tests against a real database (including tenant isolation) | `test/` |
 
 ## Run it
 
