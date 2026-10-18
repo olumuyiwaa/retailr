@@ -117,7 +117,7 @@ Implemented so far: coupons, team, profile, groups and messages. `PUT` on a coup
 | `POST /business/team` | `{ name, email, role: "manager"\|"staff" }`. Limited by plan `maxStaff` ("Your {plan} plan allows {n} team members. Upgrade to invite more."); duplicate email gives "That person is already on your team." Create as `INVITED`, email an invite link. |
 | `DELETE /business/team/:id` | The owner can't be removed: "The owner cannot be removed." |
 | `GET /business/billing` | `{ plan, subscription, usage, invoices, plans }`. Usage: products, staff, orders this month, storage (real sum of uploads). |
-| `POST /business/billing/change-plan` | `{ planId, cycle, couponCode? }` (below). |
+| `POST /business/billing/change-plan` | `{ planId, cycle, couponCode? }` (below). Returns the refreshed billing view. No payment is taken yet (provider TODO), and a business that already redeemed a code isn't blocked by its own use when it changes cycle or re-enters the code. |
 | `GET /business/profile`, `PATCH /business/profile` | Editable: `name, description, phone, country, city, brandColor, category, currency, theme, logo`. `logo` is a URL, `null` removes it. Validate `theme` against the known theme ids. |
 
 ## Platform discounts (subscription coupons)

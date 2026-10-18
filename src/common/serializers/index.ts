@@ -45,7 +45,7 @@ export const toPlanCoupon = (c: PlanCoupon & { plans?: { planId: string }[]; _co
   createdAt: iso(c.createdAt)!,
 });
 
-export const toSubscription = (s: Subscription) => ({
+export const toSubscription = (s: Subscription & { planCoupon?: { code: string } | null }) => ({
   id: s.id,
   businessId: s.businessId,
   planId: s.planId,
@@ -56,6 +56,19 @@ export const toSubscription = (s: Subscription) => ({
   currentPeriodEnd: iso(s.currentPeriodEnd)!,
   ...(s.trialEndsAt ? { trialEndsAt: iso(s.trialEndsAt) } : {}),
   ...(s.cancelledAt ? { cancelledAt: iso(s.cancelledAt) } : {}),
+  ...(s.planCouponId && s.planCoupon ? { couponCode: s.planCoupon.code } : {}),
+  ...(s.discount != null && s.planCouponId ? { discount: num(s.discount) } : {}),
+});
+
+export const toInvoice = (i: Invoice) => ({
+  id: i.id,
+  businessId: i.businessId,
+  planId: i.planId,
+  description: i.description,
+  amount: num(i.amount),
+  status: lower(i.status),
+  issuedAt: iso(i.issuedAt)!,
+  ...(i.paidAt ? { paidAt: iso(i.paidAt) } : {}),
 });
 
 // ---------- catalogue ----------
@@ -160,7 +173,7 @@ export const toCustomer = (c: Customer) => ({
 });
 
 // ---------- business extras ----------
-import type { Coupon, CustomerGroup, Message, TeamMember } from "@prisma/client";
+import type { Invoice, Coupon, CustomerGroup, Message, TeamMember } from "@prisma/client";
 
 export const toCoupon = (c: Coupon) => ({
   id: c.id,

@@ -1,7 +1,9 @@
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { ListObjectsV2Command, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { readdir, stat } from "fs/promises";
+import { resolve, sep } from "path";
 import { createHmac, randomBytes, timingSafeEqual } from "crypto";
 import { AppError } from "../common/errors";
 
@@ -79,6 +81,34 @@ export class StorageService {
     const want = Buffer.from(this.sign(key, contentType, exp));
     const got = Buffer.from(sig ?? "");
     return want.length === got.length && timingSafeEqual(want, got);
+  }
+
+  /** Total bytes of everything this business has uploaded (what counts against the plan's storage). */
+  async usageBytes(businessId: string): Promise<number> {
+    let total = 0;
+    if (this.driver === "s3") {
+      let token: string | undefined;
+      do {
+        const r = await this.s3!.send(new ListObjectsV2Command({ Bucket: this.bucket, Prefix: `${businessId}/`, ContinuationToken: token }));
+        for (const o of r.Contents ?? []) total += o.Size ?? 0;
+        token = r.IsTruncated ? r.NextContinuationToken : undefined;
+      } while (token);
+      return total;
+    }
+    const root = resolve(this.config.get<string>("LOCAL_UPLOAD_DIR") ?? "./uploads");
+    const dir = resolve(root, businessId);
+    if (!dir.startsWith(root + sep)) return 0;
+    const walk = async (d: string): Promise<void> => {
+      let entries;
+      try { entries = await readdir(d, { withFileTypes: true }); } catch { return; } // nothing uploaded yet
+      for (const e of entries) {
+        const f = resolve(d, e.name);
+        if (e.isDirectory()) await walk(f);
+        else if (e.isFile()) total += (await stat(f)).size;
+      }
+    };
+    await walk(dir);
+    return total;
   }
 
   get maxUploadBytes() { return this.maxBytes; }

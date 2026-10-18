@@ -25,7 +25,9 @@ export class PlanCouponsService {
     const bad = (m: string, k = "COUPON_INVALID") => AppError.badRequest(m, k);
     if (!c || c.status !== "ACTIVE") throw bad("That discount code isn't valid.");
     if (c.expiresAt && c.expiresAt.getTime() < Date.now()) throw bad("That discount code has expired.", "COUPON_EXPIRED");
-    if (c.maxUses != null && c._count.redemptions >= c.maxUses) throw bad("That discount code has been fully used.", "COUPON_USED_UP");
+    // a business that already redeemed this code isn't blocked by its own use (changing cycle, re-entering the code)
+    const mine = businessId ? await db.planCouponRedemption.findUnique({ where: { planCouponId_businessId: { planCouponId: c.id, businessId } } }) : null;
+    if (c.maxUses != null && !mine && c._count.redemptions >= c.maxUses) throw bad("That discount code has been fully used.", "COUPON_USED_UP");
     if (c.businessId && c.businessId !== businessId) throw bad("That discount code isn't valid for this business.");
     if (c.plans.length && !c.plans.some((p) => p.planId === plan.id)) {
       const names = await db.plan.findMany({ where: { id: { in: c.plans.map((p) => p.planId) } }, select: { name: true } });
@@ -39,6 +41,8 @@ export class PlanCouponsService {
   async price(db: Tx, plan: Plan, cycle: "MONTHLY" | "YEARLY", code?: string, businessId?: string): Promise<PricedPlan> {
     const list = cycle === "YEARLY" ? plan.priceYearly : plan.priceMonthly;
     if (!code?.trim()) return { amount: list, discount: null, planCouponId: null };
+    // serialise redemptions of one code so the last use can't be handed to two businesses at once (held until the surrounding transaction ends)
+    await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${"plancoupon:" + code.trim().toUpperCase()}))`;
     const c = await this.check(db, code, plan, businessId);
     const raw = c.type === "PERCENT" ? list.mul(c.value).div(100) : c.value;
     const discount = Prisma.Decimal.min(raw, list).toDecimalPlaces(2);
