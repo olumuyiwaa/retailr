@@ -57,3 +57,45 @@ export const toSubscription = (s: Subscription) => ({
   ...(s.trialEndsAt ? { trialEndsAt: iso(s.trialEndsAt) } : {}),
   ...(s.cancelledAt ? { cancelledAt: iso(s.cancelledAt) } : {}),
 });
+
+// ---------- catalogue ----------
+import type { Category, Product, ProductImage, ProductVariant } from "@prisma/client";
+
+export const toCategory = (c: Category & { _count?: { products: number } }) => ({
+  id: c.id,
+  businessId: c.businessId,
+  name: c.name,
+  ...(c.imageUrl ? { image: c.imageUrl } : {}),
+  createdAt: iso(c.createdAt)!,
+  ...(c._count ? { productCount: c._count.products } : {}),
+});
+
+type ProductRow = Product & {
+  category?: Category | null;
+  images?: ProductImage[];
+  variants?: ProductVariant[];
+};
+
+export const toProduct = (p: ProductRow) => {
+  const images = [...(p.images ?? [])].sort((a, b) => a.position - b.position).map((i) => i.url);
+  const variants = [...(p.variants ?? [])].sort((a, b) => a.position - b.position);
+  return {
+    id: p.id,
+    businessId: p.businessId,
+    name: p.name,
+    sku: p.sku,
+    category: p.category?.name ?? "",
+    description: p.description,
+    price: num(p.price),
+    stock: p.stock,
+    status: lower(p.status),
+    sold: p.sold,
+    imageColor: p.imageColor,
+    ...(images.length ? { image: images[0], images } : {}),
+    ...(variants.length
+      ? { variants: variants.map((v) => ({ id: v.id, name: v.name, ...(v.price != null ? { price: num(v.price) } : {}), stock: v.stock })) }
+      : {}),
+    ...(Array.isArray(p.specs) && p.specs.length ? { specs: p.specs } : {}),
+    createdAt: iso(p.createdAt)!,
+  };
+};

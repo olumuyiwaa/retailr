@@ -8,6 +8,8 @@ import { JwtAuthGuard } from "./common/guards/jwt-auth.guard";
 import { PrismaModule } from "./prisma/prisma.module";
 import { AuthModule } from "./auth/auth.module";
 import { PlansModule } from "./plans/plans.module";
+import { StorageModule } from "./storage/storage.module";
+import { CatalogueModule } from "./catalogue/catalogue.module";
 import { HealthController } from "./health/health.controller";
 
 @Module({
@@ -17,6 +19,8 @@ import { HealthController } from "./health/health.controller";
     PrismaModule,
     AuthModule,
     PlansModule,
+    StorageModule,
+    CatalogueModule,
   ],
   controllers: [HealthController],
   providers: [

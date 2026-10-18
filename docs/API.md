@@ -64,15 +64,17 @@ Legend: 🌐 public (rate-limited) · 🏪 business admin · 👑 super admin.
 ### Products and categories
 | Endpoint | Notes |
 | --- | --- |
-| `GET /business/products` | Optional `q`, `status`, `categoryId`. |
+| `GET /business/products` | Optional `q` (name or SKU), `status`, `categoryId`, `page` (default 1), `limit` (default 100, max 200). The body is the page of products; the total is in the `X-Total-Count` header. |
+| `GET /business/products/:id` | One product. |
 | `POST /business/products`, `PUT /business/products/:id` | Body: `name, sku, category (name), description, price, stock, status, images[], variants[], specs[]`. |
 | `DELETE /business/products/:id` | Order history keeps its snapshots (`OrderItem.productId` becomes null). |
 | `GET /business/categories` | Each with `productCount`. |
 | `POST /business/categories`, `PATCH /business/categories/:id`, `DELETE /business/categories/:id` | Delete leaves products uncategorised and returns `{ uncategorised }`. Rename keeps products attached (they point at the category id). |
-| `POST /business/uploads` | Returns a presigned upload URL and the final public URL. |
+| `POST /business/uploads` | `{ kind: "product"\|"category"\|"logo", contentType, size }` → `{ method: "PUT", uploadUrl, headers, publicUrl, maxBytes, expiresInSeconds }`. JPG, PNG, WebP or GIF only (no SVG, which can carry scripts), up to `UPLOAD_MAX_BYTES` (2 MB). PUT the bytes to `uploadUrl` with the given headers, then save `publicUrl` on the product, category or business. Keys start with the business id; saving a URL that isn't the business's own upload fails with `IMAGE_NOT_OWNED`. |
 
 **Product rules**
-- Max 6 photos: "A product can have up to 6 photos." `images[0]` is the cover; omit `images` to leave them unchanged, send `[]` to remove all.
+- Max 6 photos: "A product can have up to 6 photos." `images[0]` is the cover; omit `images` to leave them unchanged, send `[]` to remove all. Photos are URLs from `/business/uploads`, never data URLs.
+- `PUT` replaces the variants: omit them or send `[]` for none. Send a variant's `id` to keep that row (order history points at it); variants missing from the list are deleted.
 - Max 10 specs: "A product can have up to 10 details." Each needs both a name and a value ("Each product detail needs both a name and a value."), names under 30 characters and values under 120. Omit to leave unchanged, `[]` to clear.
 - Variants: every variant needs a name ("Every variant needs a name."), names are unique within the product, case-insensitively ("Two variants are both called \"{name}\"."), stock is a whole number ≥ 0, price optional and ≥ 0. When variants exist, `product.stock` is forced to the sum of their stock.
 - Category must be one of the business's own, matched case-insensitively and stored by its canonical name: "\"{name}\" isn't one of your categories. Add it under Categories first." Blank means uncategorised.
