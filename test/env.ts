@@ -9,3 +9,4 @@ process.env.API_PUBLIC_URL = "http://api.test";
 process.env.LOCAL_UPLOAD_DIR = require("os").tmpdir() + "/retailr-test-uploads";
 process.env.UPLOAD_MAX_BYTES = "200000";
 process.env.DEMO_CARD_PAYMENTS = "true";
+process.env.TRACK_RATE_LIMIT = "100000";

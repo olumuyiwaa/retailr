@@ -30,6 +30,8 @@ Legend: 🌐 public (rate-limited) · 🏪 business admin · 👑 super admin.
 
 ## Public: pricing, storefront, tracking
 
+`POST /track` notes: 1–50 events per batch; visitors are counted once per day and sessions once per `sessionId` (kept as hashed markers in `AnalyticsSeen`, pruned after two days); the first event of a new session supplies source, device and country. Page paths are reduced to a fixed set (`/`, `/shop`, `/product`, `/cart`, `/checkout`, `/get-started`, `/pricing`, `/features`, else `other`), product ids must be live products of that store, unknown or closed stores and bots are ignored with a 202, and the endpoint is rate-limited (`TRACK_RATE_LIMIT`, default 120 a minute per IP). Analytics windows are counted back from today in UTC.
+
 | Endpoint | Returns / does |
 | --- | --- |
 | `GET /plans` 🌐 | Active plans (`Plan`), for the pricing page, sign-up and billing. |
@@ -40,7 +42,7 @@ Legend: 🌐 public (rate-limited) · 🏪 business admin · 👑 super admin.
 | `POST /store/:slug/coupons/validate` 🌐 | `{ code, subtotal }` → `{ code, discount }`. Doesn't use the code up. |
 | `POST /store/:slug/orders` 🌐 | Place an order (below). Returns the `Order` including `publicToken`. |
 | `GET /store/orders/:publicToken` 🌐 | The order plus the store, for the confirmation and invoice pages. Looked up by the unguessable token only (the order id never works). |
-| `POST /track` 🌐 | Batched events: `{ scope: businessId \| "platform", visitorId, sessionId, events: [{ type: "page"\|"product"\|"add_to_cart"\|"checkout", path, productId?, source, device, country }] }`. Fire-and-forget (202); upsert into `AnalyticsDay` by `(scope, date)`. Count a visitor once per day and a session once per sessionId. |
+| `POST /track` 🌐 (built) | Batched events: `{ scope: businessId \| "platform", visitorId, sessionId, events: [{ type: "page"\|"product"\|"add_to_cart"\|"checkout", path, productId?, source, device, country }] }`. Fire-and-forget (202); upsert into `AnalyticsDay` by `(scope, date)`. Count a visitor once per day and a session once per sessionId. |
 
 **Place order**: body `{ customer: { name, email, phone }, shippingAddress, notes?, paymentMethod, couponCode?, items: [{ productId, variantId?, qty }] }`. In one transaction:
 1. Business must be `ACTIVE` or `TRIAL`: "This store isn't available right now." Cart must be non-empty: "Your cart is empty."
@@ -138,7 +140,7 @@ Change plan: validate the code first so a bad one changes nothing. Switching pla
 
 ## Platform admin (`/platform/*`, 👑)
 
-Implemented except analytics. List endpoints take `page` and `limit` (default 50, max 200) and return the total in `X-Total-Count`. Re-activating a business also clears its subscription's `cancelledAt`. `PUT /platform/plans/:id` creates the plan when the id is new; price changes don't touch what existing subscribers already pay. A deleted discount code leaves the discount already in a subscription's price in place (`discount` stays, `couponCode` goes).
+List endpoints take `page` and `limit` (default 50, max 200) and return the total in `X-Total-Count`. Re-activating a business also clears its subscription's `cancelledAt`. `PUT /platform/plans/:id` creates the plan when the id is new; price changes don't touch what existing subscribers already pay. A deleted discount code leaves the discount already in a subscription's price in place (`discount` stays, `couponCode` goes).
 
 | Endpoint | Notes |
 | --- | --- |

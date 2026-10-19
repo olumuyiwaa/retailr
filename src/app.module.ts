@@ -8,6 +8,7 @@ import { JwtAuthGuard } from "./common/guards/jwt-auth.guard";
 import { BillingModule } from "./billing/billing.module";
 import { BusinessModule } from "./business/business.module";
 import { PlatformModule } from "./platform/platform.module";
+import { AnalyticsModule } from "./analytics/analytics.module";
 import { PrismaModule } from "./prisma/prisma.module";
 import { AuthModule } from "./auth/auth.module";
 import { PlansModule } from "./plans/plans.module";
@@ -31,6 +32,7 @@ import { HealthController } from "./health/health.controller";
     BusinessModule,
     BillingModule,
     PlatformModule,
+    AnalyticsModule,
   ],
   controllers: [HealthController],
   providers: [

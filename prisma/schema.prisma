@@ -564,3 +564,14 @@ model AnalyticsDay {
 
   @@unique([scope, date])
 }
+
+/// Dedupe markers for POST /track: one row per visitor (kind "v") or session (kind "s") per scope per day, keyed by a
+/// hash so raw ids are never stored. Only needed for today, so rows older than two days are pruned.
+model AnalyticsSeen {
+  scope   String
+  date    DateTime @db.Date
+  kind    String
+  keyHash String
+
+  @@id([scope, date, kind, keyHash])
+}
