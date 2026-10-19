@@ -25,6 +25,8 @@ export class MailService {
   async send(mail: Mail): Promise<void> {
     if (!this.smtp) {
       this.log.log(`(not sent, MAIL_DRIVER=log) to=${mail.to} subject="${mail.subject}"`);
+      // local development only: show the links in the mail (invite, reset...) so they can be opened without an inbox
+      if (this.config.get("NODE_ENV") === "development") for (const l of mail.text.match(/https?:\/\/\S+/g) ?? []) this.log.log(`  link: ${l}`);
       this.outbox.push(mail);
       if (this.outbox.length > 500) this.outbox.shift();
       return;
