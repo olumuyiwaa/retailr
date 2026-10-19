@@ -142,7 +142,7 @@ export class PlatformService {
     const next = status.toUpperCase() as BusinessStatus;
     const b = await this.prisma.$transaction(async (tx) => {
       if (!(await tx.business.findUnique({ where: { id }, select: { id: true } }))) throw AppError.notFound("Business not found.");
-      const biz = await tx.business.update({ where: { id }, data: { status: next } });
+      const biz = await tx.business.update({ where: { id }, data: { status: next, suspensionReason: next === "SUSPENDED" ? "ADMIN" : null } });
       const sub = await tx.subscription.findUnique({ where: { businessId: id }, select: { id: true } });
       if (sub) {
         if (next === "SUSPENDED") await tx.subscription.update({ where: { businessId: id }, data: { status: "PAST_DUE" } });

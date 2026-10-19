@@ -19,8 +19,9 @@ Backend for [Retailr](https://github.com/olumuyiwaa/retailr_frontend), a multi-t
 | Billing: usage (including real upload size), invoices, change plan with platform discount codes (one redemption per business, last use serialised, carried-code rules) | `src/billing` |
 | Platform admin: overview (MRR, signups, churn, GMV), businesses with approve/suspend/cancel, subscriptions, invoices, plans, discount codes | `src/platform` |
 | Visit tracking (`POST /track`, public, de-duplicated, bounded) and analytics for businesses and the platform | `src/analytics` |
+| Subscription payments (Paystack, pluggable provider): checkout, signed webhook, renewals, dunning and trial jobs | `src/payments`, `src/jobs`, `src/billing` |
 | Email (log or SMTP driver): team invites with accept-invite, receipts, customer messages with `{{first_name}}` and `{{store}}` filled in | `src/mail`, `src/auth`, `src/business` |
-| 141 end-to-end tests against a real database (including tenant isolation) | `test/` |
+| 165 end-to-end tests against a real database (including tenant isolation) | `test/` |
 
 ## Run it
 

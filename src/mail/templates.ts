@@ -5,7 +5,7 @@ export const esc = (v: unknown) => String(v ?? "").replace(/[&<>"']/g, (c) => ({
 const shell = (title: string, body: string) =>
   `<!doctype html><html><body style="margin:0;background:#f6f7f9;font-family:Arial,Helvetica,sans-serif;color:#1d2939"><div style="max-width:560px;margin:0 auto;padding:24px"><div style="background:#fff;border-radius:12px;padding:28px"><h2 style="margin:0 0 16px;font-size:20px">${esc(title)}</h2>${body}</div><p style="font-size:12px;color:#98a2b3;text-align:center;margin-top:16px">Sent by Retailr</p></div></body></html>`;
 const button = (url: string, label: string) => `<p style="margin:24px 0"><a href="${esc(url)}" style="background:#465fff;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;display:inline-block">${esc(label)}</a></p>`;
-const money = (n: number, currency: string) => {
+export const money = (n: number, currency: string) => {
   const sym: Record<string, string> = { NGN: "₦", GHS: "GH₵", KES: "KSh", USD: "$" };
   return `${sym[currency] ?? ""}${n.toLocaleString("en-US", { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 })}`;
 };

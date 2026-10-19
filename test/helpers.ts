@@ -10,7 +10,7 @@ let n = 0;
 
 export async function boot(extra: { controllers?: any[] } = {}) {
   const mod = await Test.createTestingModule({ imports: [AppModule], controllers: extra.controllers ?? [] }).compile();
-  const app: INestApplication = mod.createNestApplication();
+  const app: INestApplication = mod.createNestApplication({ rawBody: true });
   configureApp(app);
   await app.init();
   return { app, prisma: app.get(PrismaService), api: () => request(app.getHttpServer()) };

@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { AppError } from "../common/errors";
 import { toInvoice, toPlan, toSubscription } from "../common/serializers";
+import { PaymentsService } from "../payments/payments.service";
 import { PlanCouponsService } from "../plans/plan-coupons.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { StorageService } from "../storage/storage.service";
@@ -9,7 +10,7 @@ const GB = 1024 ** 3;
 
 @Injectable()
 export class BillingService {
-  constructor(private readonly prisma: PrismaService, private readonly storage: StorageService, private readonly coupons: PlanCouponsService) {}
+  constructor(private readonly prisma: PrismaService, private readonly storage: StorageService, private readonly coupons: PlanCouponsService, private readonly payments: PaymentsService) {}
 
   async get(businessId: string) {
     const db = this.prisma.forBusiness(businessId);
@@ -26,6 +27,8 @@ export class BillingService {
     return {
       plan: toPlan(p),
       ...(sub ? { subscription: toSubscription(sub) } : {}),
+      /** Whether the page should send people through checkout to pay, and whether a card is saved for renewals. */
+      payments: { enabled: this.payments.enabled, provider: this.payments.provider?.name ?? null, cardOnFile: !!sub?.providerAuthorization },
       usage: {
         products: { used: products, limit: p.maxProducts },
         staff: { used: staff, limit: p.maxStaff },
@@ -50,6 +53,7 @@ export class BillingService {
       if (!plan || !sub) throw AppError.badRequest("Could not change plan.", "PLAN_CHANGE_FAILED");
 
       const free = plan.priceMonthly.equals(0);
+      if (this.payments.enabled && !free) throw new AppError(402, "PAYMENT_REQUIRED", "Complete payment to switch to this plan.");
       const entered = couponCode?.trim() || undefined;
       const carry = !entered && !free && sub.planId === plan.id ? sub.planCoupon?.code : undefined;
       let priced;
@@ -67,7 +71,7 @@ export class BillingService {
         where: { businessId },
         data: {
           planId: plan.id, cycle, amount: priced.amount, planCouponId: priced.planCouponId, discount: priced.discount,
-          ...(free ? { status: "ACTIVE", trialEndsAt: null } : {}),
+          ...(free ? { status: "ACTIVE", trialEndsAt: null, providerAuthorization: null } : {}), // a free plan stops card renewals
         },
       });
       if (priced.planCouponId) await this.coupons.redeem(tx, priced.planCouponId, businessId);
@@ -75,3 +79,4 @@ export class BillingService {
     return this.get(businessId);
   }
 }
+

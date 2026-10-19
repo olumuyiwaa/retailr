@@ -7,8 +7,10 @@ import { AllExceptionsFilter } from "./common/filters/all-exceptions.filter";
 import { JwtAuthGuard } from "./common/guards/jwt-auth.guard";
 import { BillingModule } from "./billing/billing.module";
 import { BusinessModule } from "./business/business.module";
+import { PaymentsModule } from "./payments/payments.module";
 import { PlatformModule } from "./platform/platform.module";
 import { AnalyticsModule } from "./analytics/analytics.module";
+import { JobsModule } from "./jobs/jobs.module";
 import { MailModule } from "./mail/mail.module";
 import { PrismaModule } from "./prisma/prisma.module";
 import { AuthModule } from "./auth/auth.module";
@@ -32,6 +34,8 @@ import { HealthController } from "./health/health.controller";
     OrdersModule,
     StoreModule,
     BusinessModule,
+    PaymentsModule,
+    JobsModule,
     BillingModule,
     PlatformModule,
     AnalyticsModule,

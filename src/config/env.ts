@@ -30,6 +30,14 @@ export class Env {
   @IsString() MAIL_FROM: string = "Retailr <noreply@retailr.com>";
   /** Where the web app lives; used to build the links in emails (accept invite, billing). */
   @IsString() APP_PUBLIC_URL: string = "http://localhost:3000";
+  /** How the platform collects subscription payments. "none": plan changes apply straight away with no charge (demo). "fake" is for tests and local development only. */
+  @IsIn(["none", "paystack", "fake"]) PAYMENTS_DRIVER: string = "none";
+  @IsOptional() @IsString() PAYSTACK_SECRET_KEY?: string;
+  @IsOptional() @IsString() PAYSTACK_BASE_URL?: string;
+  /** "false" turns the background jobs (renewals, trial expiry, cleanup) off, e.g. on a second web instance. */
+  @IsIn(["true", "false"]) JOBS_ENABLED: string = "true";
+  /** Days a late subscription stays online (retrying the card each day) before the store is suspended. */
+  @IsInt() @Min(0) DUNNING_GRACE_DAYS: number = 7;
   @IsOptional() @IsString() SEED_SUPER_ADMIN_EMAIL?: string;
   @IsOptional() @IsString() SEED_SUPER_ADMIN_PASSWORD?: string;
 }
@@ -42,6 +50,8 @@ export function validateEnv(raw: Record<string, unknown>): Env {
     const missing = ["S3_BUCKET", "S3_REGION", "S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY", "STORAGE_PUBLIC_URL"].filter((k) => !(env as unknown as Record<string, unknown>)[k]);
     if (missing.length) throw new Error(`Invalid environment:\n - STORAGE_DRIVER=s3 needs ${missing.join(", ")}`);
   }
+  if (!errors.length && env.PAYMENTS_DRIVER === "paystack" && !env.PAYSTACK_SECRET_KEY) throw new Error("Invalid environment:\n - PAYMENTS_DRIVER=paystack needs PAYSTACK_SECRET_KEY");
+  if (!errors.length && env.PAYMENTS_DRIVER === "fake" && env.NODE_ENV === "production") throw new Error("Invalid environment:\n - PAYMENTS_DRIVER=fake is not allowed in production");
   if (!errors.length && env.MAIL_DRIVER === "smtp" && !env.SMTP_URL) throw new Error("Invalid environment:\n - MAIL_DRIVER=smtp needs SMTP_URL");
   if (errors.length) {
     const lines = errors.flatMap((e) => Object.values(e.constraints ?? {}));

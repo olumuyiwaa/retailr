@@ -122,7 +122,7 @@ Implemented so far: coupons, team, profile, groups and messages. `PUT` on a coup
 | `POST /business/team/:id/resend` | New invite link for someone who hasn't joined (the old one stops working). |
 | `DELETE /business/team/:id` | The owner can't be removed: "The owner cannot be removed." |
 | `GET /business/billing` | `{ plan, subscription, usage, invoices, plans }`. Usage: products, staff, orders this month, storage (real sum of uploads). |
-| `POST /business/billing/change-plan` | `{ planId, cycle, couponCode? }` (below). Returns the refreshed billing view. No payment is taken yet (provider TODO), and a business that already redeemed a code isn't blocked by its own use when it changes cycle or re-enters the code. |
+| `POST /business/billing/change-plan` | `{ planId, cycle, couponCode? }` (below). Returns the refreshed billing view. When payments are on, a paid plan needs checkout instead (below). A business that already redeemed a code isn't blocked by its own use when it changes cycle or re-enters the code. |
 | `GET /business/profile`, `PATCH /business/profile` | Editable: `name, description, phone, country, city, brandColor, category, currency, theme, logo`. `logo` is a URL, `null` removes it. Validate `theme` against the known theme ids. |
 
 ## Platform discounts (subscription coupons)
@@ -157,10 +157,30 @@ List endpoints take `page` and `limit` (default 50, max 200) and return the tota
 | `GET /platform/plan-coupons`, `POST`, `PUT /:id`, `PATCH /:id/status`, `DELETE /:id` | Rows add `businessName`, `planNames`, `redeemed` (businesses using it) and `discountPerMonth` (sum over live subscriptions, yearly ÷ 12). Same code rules as business coupons; deleting a code leaves existing discounts in place. |
 | `GET /platform/analytics?days=7\|30\|90\|365` | `PlatformAnalytics`: the marketing-site funnel (visit → sign-up page → sign-ups from real `Business` rows), plus totals across all storefronts and the busiest stores. |
 
+## Subscription payments (Paystack)
+
+Switched on with `PAYMENTS_DRIVER=paystack` and `PAYSTACK_SECRET_KEY`. With `none` (the default) plan changes apply directly, as before. `fake` is an in-memory provider for tests and local work and is refused in production.
+
+| Endpoint | Notes |
+|---|---|
+| `POST /business/billing/checkout` | `{ planId, cycle, couponCode? }` → `{ reference, checkoutUrl, invoice, charge: { amount, currency }, applied }`. Redirect the browser to `checkoutUrl`. Charged in the business's currency (the plan's `localPrices`, scaled by any discount). A 100% discount returns `applied: true` with no URL and the plan switches at once. A provider outage returns 502 `PAYMENT_PROVIDER_ERROR`. |
+| `GET /business/billing/verify/:reference` | Call from the page Paystack returns to (`?reference=` on `/admin/business/billing`). Asks the provider and applies the result once: `{ status: "paid"\|"failed"\|"pending", applied }`. Only the business that started it can look it up. |
+| `POST /webhooks/paystack` 🌐 | Signed (`x-paystack-signature`, HMAC-SHA512 of the raw body). Bad signature → 401. Never trusts the body: it asks Paystack about the reference, then applies it. Always 200 for valid signatures. |
+| `POST /business/billing/change-plan` | When payments are on, a paid target plan returns 402 `PAYMENT_REQUIRED` (use checkout). Free plans still switch directly and drop the saved card. |
+
+`GET /business/billing` also returns `payments: { enabled, provider, cardOnFile }`.
+
+Rules: the amount and currency must match the invoice or the payment is rejected. An invoice is applied exactly once (unique `providerReference`, row lock), however many times it's reported. A successful first payment sets `ACTIVE`, ends the trial, stores the reusable card, starts a period, redeems the discount code and emails a receipt. There is no proration: a plan change starts a fresh period. Paying lifts a `NON_PAYMENT` suspension, never an `ADMIN` one (`Business.suspensionReason`).
+
 ## Background jobs
 
-- Trial expiry: when `trialEndsAt` passes, charge the card on file or move the subscription to `PAST_DUE` and email the owner.
-- Renewals: at `currentPeriodEnd`, create the next `Invoice`, charge, mark `PAID` or `FAILED`; advance the period.
-- Provider webhooks (Paystack/Flutterwave): verify the signature, then update invoice and subscription status idempotently.
-- Message delivery per recipient; receipt emails; invite emails.
-- Nightly: recompute customer totals as a safety net; prune old refresh tokens.
+`JobsService` runs hourly (and once on boot) unless `JOBS_ENABLED=false`; every step is safe to run twice or on several servers.
+
+- **Trial reminder:** 3 days before `trialEndsAt`, once.
+- **Trial expiry:** an unpaid ended trial becomes `PAST_DUE`; the owner is emailed. The store stays up.
+- **Renewals:** at `currentPeriodEnd`, charge the saved card (reference `renew_<sub>_<period>_<attempt>`). Free or fully discounted subscriptions roll on without a charge. No card on file → `PAST_DUE`.
+- **Dunning:** a `PAST_DUE` subscription retries once a day; after `DUNNING_GRACE_DAYS` (default 7) the business is suspended with reason `NON_PAYMENT`.
+- **Stale payments:** a renewal still pending after an hour is resolved by asking the provider. Checkouts unpaid after 24 h are marked `FAILED`.
+- **Nightly (02:00 UTC):** prune expired refresh tokens and old analytics dedupe rows; recompute customer totals from paid orders.
+
+Still open: SMS/WhatsApp delivery for messages (email only today), and Flutterwave/Stripe adapters behind the same `PaymentProvider` interface.
