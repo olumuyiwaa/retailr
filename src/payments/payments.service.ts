@@ -8,6 +8,7 @@ import { toInvoice } from "../common/serializers";
 import { MailService } from "../mail/mail.service";
 import { money, paymentFailedMail, subscriptionPaidMail } from "../mail/templates";
 import { PlanCouponsService } from "../plans/plan-coupons.service";
+import { AuditService } from "../audit/audit.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { PAYMENT_PROVIDER, PaymentProvider, VerifiedCharge } from "./payment.provider";
 
@@ -37,6 +38,7 @@ export class PaymentsService {
     private readonly config: ConfigService,
     private readonly mail: MailService,
     private readonly coupons: PlanCouponsService,
+    private readonly audit: AuditService,
     @Optional() @Inject(PAYMENT_PROVIDER) readonly provider: PaymentProvider | null,
   ) {}
 
@@ -128,7 +130,11 @@ export class PaymentsService {
       paidInvoice = paid;
       return { status: "paid" as const, applied: true };
     });
-    if (paidInvoice) await this.sendPaidMail(paidInvoice);
+    if (paidInvoice) {
+      const pi = paidInvoice as Invoice;
+      await this.audit.record({ action: pi.kind === "RENEWAL" ? "payment.renewal_paid" : "payment.checkout_paid", actorRole: "SYSTEM", actorEmail: "system", businessId: pi.businessId, targetId: pi.id, meta: { planId: pi.planId, amount: Number(pi.chargeAmount ?? pi.amount), currency: pi.chargeCurrency ?? "USD" } });
+      await this.sendPaidMail(pi);
+    }
     return out;
   }
 

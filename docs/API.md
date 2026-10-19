@@ -157,6 +157,10 @@ List endpoints take `page` and `limit` (default 50, max 200) and return the tota
 | `GET /platform/plan-coupons`, `POST`, `PUT /:id`, `PATCH /:id/status`, `DELETE /:id` | Rows add `businessName`, `planNames`, `redeemed` (businesses using it) and `discountPerMonth` (sum over live subscriptions, yearly ÷ 12). Same code rules as business coupons; deleting a code leaves existing discounts in place. |
 | `GET /platform/analytics?days=7\|30\|90\|365` | `PlatformAnalytics`: the marketing-site funnel (visit → sign-up page → sign-ups from real `Business` rows), plus totals across all storefronts and the busiest stores. |
 
+## Audit log
+
+`GET /business/audit` (a business's own history) and `GET /platform/audit` (everything; filter `businessId`, `action`). Paged, newest first: `{ id, at, action, actorRole, actorEmail, businessId, targetId, meta }`. Every successful change under `/platform/*` and `/business/{coupons,team,billing,profile,groups}` is recorded as `"<METHOD> <route>"` with the field names changed (plus short scalar values, never anything that looks like a password, token or card). Payments and the non-payment suspension are recorded as `payment.checkout_paid`, `payment.renewal_paid`, `business.suspended_non_payment` with actor `SYSTEM`. Failed requests and reads are not recorded.
+
 ## Subscription payments (Paystack)
 
 Switched on with `PAYMENTS_DRIVER=paystack` and `PAYSTACK_SECRET_KEY`. With `none` (the default) plan changes apply directly, as before. `fake` is an in-memory provider for tests and local work and is refused in production.

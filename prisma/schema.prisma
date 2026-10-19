@@ -592,3 +592,21 @@ model AnalyticsSeen {
 
   @@id([scope, date, kind, keyHash])
 }
+
+/// Who did what, when. Written for platform actions and sensitive business actions; never holds request bodies, passwords or tokens.
+model AuditLog {
+  id         String   @id @default(cuid())
+  at         DateTime @default(now())
+  /// The business it concerns (null for platform-wide actions with no single business).
+  businessId String?
+  actorId    String?
+  actorRole  String
+  /// "system" for jobs and webhooks.
+  actorEmail String?
+  action     String
+  targetId   String?
+  meta       Json?
+
+  @@index([businessId, at])
+  @@index([at])
+}

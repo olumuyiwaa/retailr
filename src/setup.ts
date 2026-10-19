@@ -18,6 +18,9 @@ const firstMessage = (errors: ValidationError[]): string => {
 export function configureApp(app: INestApplication) {
   const config = app.get(ConfigService);
   app.setGlobalPrefix("api/v1");
+  // behind a load balancer, rate limits and analytics need the real client address: TRUST_PROXY = how many proxies sit in front (0 = none)
+  const hops = Number(process.env.TRUST_PROXY ?? 0);
+  if (hops > 0) app.getHttpAdapter().getInstance().set("trust proxy", hops);
   // images are loaded from the storefront's own origin, so they must be embeddable cross-origin
   app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
   if ((config.get("STORAGE_DRIVER") ?? "local") === "local") {

@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { AuditService } from "../audit/audit.service";
 import { MailService } from "../mail/mail.service";
 import { trialEndingMail } from "../mail/templates";
 import { addPeriod, PaymentsService } from "../payments/payments.service";
@@ -18,7 +19,7 @@ export class JobsService implements OnModuleInit, OnModuleDestroy {
   private timer?: NodeJS.Timeout;
   private lastNightly = "";
 
-  constructor(private readonly prisma: PrismaService, private readonly payments: PaymentsService, private readonly mail: MailService, private readonly config: ConfigService) {}
+  constructor(private readonly prisma: PrismaService, private readonly payments: PaymentsService, private readonly mail: MailService, private readonly config: ConfigService, private readonly audit: AuditService) {}
 
   onModuleInit() {
     if ((this.config.get("JOBS_ENABLED") ?? "true") !== "true") return;
@@ -99,6 +100,7 @@ export class JobsService implements OnModuleInit, OnModuleDestroy {
       if (s.status === "PAST_DUE" && now.getTime() - s.currentPeriodEnd.getTime() > grace) {
         const r = await this.prisma.business.updateMany({ where: { id: s.businessId, status: { in: ["ACTIVE", "TRIAL"] } }, data: { status: "SUSPENDED", suspensionReason: "NON_PAYMENT" } });
         out.suspended += r.count;
+        if (r.count) await this.audit.record({ action: "business.suspended_non_payment", actorRole: "SYSTEM", actorEmail: "system", businessId: s.businessId });
         continue;
       }
       if (!s.providerAuthorization || !this.payments.enabled) {
