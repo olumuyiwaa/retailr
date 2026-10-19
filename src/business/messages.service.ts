@@ -1,6 +1,8 @@
 import { Injectable } from "@nestjs/common";
 import { AppError } from "../common/errors";
 import { toMessage } from "../common/serializers";
+import { MailService } from "../mail/mail.service";
+import { customerMessageMail, fillTemplate } from "../mail/templates";
 import { PrismaService } from "../prisma/prisma.service";
 import { AudienceDto, SendMessageDto } from "./dto/business.dto";
 import { membersWhere } from "./groups.service";
@@ -11,7 +13,23 @@ const reachable = (c: { email: string | null; phone: string }, channel: Channel)
 
 @Injectable()
 export class MessagesService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly inflight = new Set<Promise<void>>();
+  constructor(private readonly prisma: PrismaService, private readonly mail: MailService) {}
+
+  /** Resolves when every email handed off so far has been attempted (used by tests and graceful shutdown). */
+  async idle() { await Promise.allSettled([...this.inflight]); }
+
+  /** Sends one email per recipient with {{first_name}} and {{store}} filled in. Failures are logged and don't stop the rest. */
+  private async deliverEmails(store: string, subject: string, body: string, recipients: { name: string; email: string | null }[]) {
+    const queue = recipients.filter((r) => r.email);
+    const worker = async () => {
+      for (let r = queue.shift(); r; r = queue.shift()) {
+        const v = { first_name: r.name.split(" ")[0] || "there", store };
+        await this.mail.trySend(customerMessageMail(r.email!, { subject: fillTemplate(subject, v), body: fillTemplate(body, v), store }));
+      }
+    };
+    await Promise.all(Array.from({ length: 5 }, worker));
+  }
 
   private async audience(businessId: string, audience: AudienceDto, channel: Channel) {
     const db = this.prisma.forBusiness(businessId);
@@ -44,11 +62,16 @@ export class MessagesService {
     if (dto.channel === "sms" && body.length > 480) throw AppError.badRequest("SMS messages are limited to 480 characters.");
     const a = await this.audience(businessId, dto.audience, dto.channel);
     if (a.recipients.length === 0) throw AppError.badRequest("No customers in this audience can be reached on that channel.");
-    // TODO: queue delivery per recipient once an email/SMS provider is connected, filling {{first_name}} and {{store}}.
-    // For now the message is recorded as sent.
+    // Email goes out now (in the background). SMS and WhatsApp have no provider connected yet, so those are only recorded.
     const m = await this.prisma.forBusiness(businessId).message.create({
       data: { channel: dto.channel.toUpperCase() as never, subject: dto.channel === "email" ? dto.subject!.trim() : null, body, audienceLabel: a.label, recipientCount: a.recipients.length } as never,
     });
+    if (dto.channel === "email") {
+      const biz = await this.prisma.business.findUniqueOrThrow({ where: { id: businessId }, select: { name: true } });
+      const job = this.deliverEmails(biz.name, dto.subject!.trim(), body, a.recipients);
+      this.inflight.add(job);
+      void job.finally(() => this.inflight.delete(job));
+    }
     return toMessage(m);
   }
 }

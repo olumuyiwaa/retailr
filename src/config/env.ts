@@ -24,6 +24,12 @@ export class Env {
   @IsOptional() @IsString() S3_SECRET_ACCESS_KEY?: string;
   /** "true": a card order counts as paid at once (demo). Leave false until a payment provider is connected. */
   @IsOptional() @IsIn(["true", "false"]) DEMO_CARD_PAYMENTS?: string;
+  /** "log" only logs outgoing mail (dev and tests); "smtp" sends through SMTP_URL. */
+  @IsIn(["log", "smtp"]) MAIL_DRIVER: string = "log";
+  @IsOptional() @IsString() SMTP_URL?: string;
+  @IsString() MAIL_FROM: string = "Retailr <noreply@retailr.com>";
+  /** Where the web app lives; used to build the links in emails (accept invite, billing). */
+  @IsString() APP_PUBLIC_URL: string = "http://localhost:3000";
   @IsOptional() @IsString() SEED_SUPER_ADMIN_EMAIL?: string;
   @IsOptional() @IsString() SEED_SUPER_ADMIN_PASSWORD?: string;
 }
@@ -36,6 +42,7 @@ export function validateEnv(raw: Record<string, unknown>): Env {
     const missing = ["S3_BUCKET", "S3_REGION", "S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY", "STORAGE_PUBLIC_URL"].filter((k) => !(env as unknown as Record<string, unknown>)[k]);
     if (missing.length) throw new Error(`Invalid environment:\n - STORAGE_DRIVER=s3 needs ${missing.join(", ")}`);
   }
+  if (!errors.length && env.MAIL_DRIVER === "smtp" && !env.SMTP_URL) throw new Error("Invalid environment:\n - MAIL_DRIVER=smtp needs SMTP_URL");
   if (errors.length) {
     const lines = errors.flatMap((e) => Object.values(e.constraints ?? {}));
     throw new Error(`Invalid environment:\n - ${lines.join("\n - ")}`);

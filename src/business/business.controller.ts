@@ -35,7 +35,8 @@ export class BusinessController {
   @Post("messages") sendMessage(@CurrentUser() u: AuthContext, @Body() d: SendMessageDto) { return this.messages.send(u.businessId!, d); }
 
   @Get("team") listTeam(@CurrentUser() u: AuthContext) { return this.team.list(u.businessId!); }
-  @Post("team") invite(@CurrentUser() u: AuthContext, @Body() d: InviteDto) { return this.team.invite(u.businessId!, d); }
+  @Post("team") invite(@CurrentUser() u: AuthContext, @Body() d: InviteDto) { return this.team.invite(u.businessId!, d, u.userId); }
+  @HttpCode(200) @Post("team/:id/resend") resend(@CurrentUser() u: AuthContext, @Param("id") id: string) { return this.team.resend(u.businessId!, id, u.userId); }
   @HttpCode(204) @Delete("team/:id") async removeMember(@CurrentUser() u: AuthContext, @Param("id") id: string) { await this.team.remove(u.businessId!, id); }
 
   @Get("profile") getProfile(@CurrentUser() u: AuthContext) { return this.profile.get(u.businessId!); }

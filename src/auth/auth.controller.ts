@@ -1,9 +1,9 @@
-import { Body, Controller, Get, HttpCode, Post } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Param, Post } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import { AuthContext, CurrentUser, Public } from "../common/decorators";
 import { AuthService } from "./auth.service";
-import { LoginDto, RefreshDto, RegisterDto } from "./dto/auth.dto";
+import { AcceptInviteDto, LoginDto, RefreshDto, RegisterDto } from "./dto/auth.dto";
 
 /** Credential endpoints: 10 per minute per client by default (AUTH_RATE_LIMIT overrides it, mainly for tests). */
 const strict = { default: { limit: () => Number(process.env.AUTH_RATE_LIMIT ?? 10), ttl: 60_000 } };
@@ -21,6 +21,12 @@ export class AuthController {
 
   @Public() @Throttle(strict) @HttpCode(200) @Post("refresh")
   refresh(@Body() dto: RefreshDto) { return this.auth.refresh(dto.refreshToken); }
+
+  @Public() @Throttle(strict) @Get("invite/:token")
+  invite(@Param("token") token: string) { return this.auth.invitePreview(token); }
+
+  @Public() @Throttle(strict) @HttpCode(200) @Post("accept-invite")
+  accept(@Body() dto: AcceptInviteDto) { return this.auth.acceptInvite(dto.token, dto.password); }
 
   @Public() @HttpCode(204) @Post("logout")
   async logout(@Body() dto: RefreshDto) { await this.auth.logout(dto.refreshToken); }

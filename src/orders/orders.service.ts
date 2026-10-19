@@ -3,13 +3,15 @@ import { Prisma } from "@prisma/client";
 import { AppError } from "../common/errors";
 import { toCustomer, toOrder } from "../common/serializers";
 import { GroupsService } from "../business/groups.service";
+import { MailService } from "../mail/mail.service";
+import { receiptMail } from "../mail/templates";
 import { PrismaService } from "../prisma/prisma.service";
 import { ListCustomersQuery, ListOrdersQuery, RecordSaleDto } from "./dto/orders.dto";
 import { holdsStock, OrderEngine } from "./order-engine.service";
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly prisma: PrismaService, private readonly engine: OrderEngine, private readonly groups: GroupsService) {}
+  constructor(private readonly prisma: PrismaService, private readonly engine: OrderEngine, private readonly groups: GroupsService, private readonly mail: MailService) {}
 
   async list(businessId: string, q: ListOrdersQuery) {
     const where: Prisma.OrderWhereInput = {
@@ -60,10 +62,22 @@ export class OrdersService {
     return toOrder(order);
   }
 
+  /** Emails the receipt to the address the customer gave, then records when it went out. */
   async markReceiptSent(businessId: string, id: string) {
     const db = this.prisma.forBusiness(businessId);
-    if (!(await db.order.findUnique({ where: { id }, select: { id: true } }))) throw AppError.notFound("Order not found.");
-    // TODO: queue the receipt email once an email provider is connected; for now this records that it was sent
+    const o = await db.order.findUnique({ where: { id }, include: { items: true } });
+    if (!o) throw AppError.notFound("Order not found.");
+    if (!o.customerEmail) throw AppError.badRequest("This order has no customer email to send a receipt to.", "NO_CUSTOMER_EMAIL");
+    const biz = await this.prisma.business.findUniqueOrThrow({ where: { id: businessId }, select: { name: true, slug: true, currency: true } });
+    try {
+      await this.mail.send(receiptMail(o.customerEmail, {
+        business: biz.name, currency: biz.currency,
+        order: { number: o.number, placedAt: o.placedAt, customerName: o.customerName, items: o.items.map((i) => ({ name: i.name, qty: i.qty, price: Number(i.price) })), subtotal: Number(o.subtotal), discount: Number(o.discount), total: Number(o.total), paymentStatus: o.paymentStatus.toLowerCase(), shippingAddress: o.shippingAddress },
+        viewUrl: `${this.mail.appUrl}/s/${biz.slug}/order/${o.publicToken}`,
+      }));
+    } catch {
+      throw new AppError(502, "MAIL_FAILED", "We couldn't send the receipt. Please try again.");
+    }
     return toOrder(await db.order.update({ where: { id }, data: { receiptSentAt: new Date() }, include: { items: true } }));
   }
 

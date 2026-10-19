@@ -30,6 +30,8 @@ Legend: 🌐 public (rate-limited) · 🏪 business admin · 👑 super admin.
 
 ## Public: pricing, storefront, tracking
 
+Invites: `GET /auth/invite/:token` previews `{ name, email, role, businessName }`; `POST /auth/accept-invite { token, password }` creates the login and returns a session. Links are valid for 7 days, work once, and point to `APP_PUBLIC_URL/admin/accept-invite?token=...` (the frontend page still needs building). Email messages to customers are sent as the message is recorded; SMS and WhatsApp are still only recorded.
+
 `POST /track` notes: 1–50 events per batch; visitors are counted once per day and sessions once per `sessionId` (kept as hashed markers in `AnalyticsSeen`, pruned after two days); the first event of a new session supplies source, device and country. Page paths are reduced to a fixed set (`/`, `/shop`, `/product`, `/cart`, `/checkout`, `/get-started`, `/pricing`, `/features`, else `other`), product ids must be live products of that store, unknown or closed stores and bots are ignored with a 202, and the endpoint is rate-limited (`TRACK_RATE_LIMIT`, default 120 a minute per IP). Analytics windows are counted back from today in UTC.
 
 | Endpoint | Returns / does |
@@ -89,7 +91,7 @@ Legend: 🌐 public (rate-limited) · 🏪 business admin · 👑 super admin.
 | --- | --- |
 | `GET /business/orders` | `q` (number or customer), `status`, `paymentStatus`, `channel`, `from`, `to`, `page`, `limit`. Total in the `X-Total-Count` header. |
 | `PATCH /business/orders/:id/status` | `{ status }`. `REFUNDED` sets payment to `REFUNDED`; `CANCELLED` sets it to `UNPAID`; moving an unpaid order to any status other than pending marks it `PAID`. **Also**: return stock when moving to cancelled or refunded, and recompute the customer's totals. |
-| `POST /business/orders/:id/receipt` | Sends the receipt (queue the email) and sets `receiptSentAt`. |
+| `POST /business/orders/:id/receipt` | Emails the receipt to the customer's address, then sets `receiptSentAt`. 400 `NO_CUSTOMER_EMAIL` for walk-ins without an email; 502 `MAIL_FAILED` if the mail can't go out (and `receiptSentAt` stays unset). |
 | `POST /business/sales` | Record a sale made outside the storefront (below). |
 | `GET /business/customers` | `q`, `groupId`. Each row: `id, name, email, phone, city, orders, totalSpent, joinedAt`. |
 | `GET /business/customers/:id` | `CustomerDetail`: the customer, their orders (newest first), group names, average paid order value, last order date and last delivery address. |
@@ -117,6 +119,7 @@ Implemented so far: coupons, team, profile, groups and messages. `PUT` on a coup
 | `GET/POST/PUT/DELETE /business/coupons`, `PATCH /business/coupons/:id/status` | Code is upper-cased, 3–20 of A–Z, 0–9 and `-` ("Use 3–20 letters, numbers or dashes for the code."); value > 0 ("Enter a discount greater than zero."); percent ≤ 100 ("A percentage can't be more than 100."); unique per business ("You already have a code with that name."). |
 | `GET /business/team` | Members. |
 | `POST /business/team` | `{ name, email, role: "manager"\|"staff" }`. Limited by plan `maxStaff` ("Your {plan} plan allows {n} team members. Upgrade to invite more."); duplicate email gives "That person is already on your team." Create as `INVITED`, email an invite link. |
+| `POST /business/team/:id/resend` | New invite link for someone who hasn't joined (the old one stops working). |
 | `DELETE /business/team/:id` | The owner can't be removed: "The owner cannot be removed." |
 | `GET /business/billing` | `{ plan, subscription, usage, invoices, plans }`. Usage: products, staff, orders this month, storage (real sum of uploads). |
 | `POST /business/billing/change-plan` | `{ planId, cycle, couponCode? }` (below). Returns the refreshed billing view. No payment is taken yet (provider TODO), and a business that already redeemed a code isn't blocked by its own use when it changes cycle or re-enters the code. |

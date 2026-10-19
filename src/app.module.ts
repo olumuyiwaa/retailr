@@ -9,6 +9,7 @@ import { BillingModule } from "./billing/billing.module";
 import { BusinessModule } from "./business/business.module";
 import { PlatformModule } from "./platform/platform.module";
 import { AnalyticsModule } from "./analytics/analytics.module";
+import { MailModule } from "./mail/mail.module";
 import { PrismaModule } from "./prisma/prisma.module";
 import { AuthModule } from "./auth/auth.module";
 import { PlansModule } from "./plans/plans.module";
@@ -23,6 +24,7 @@ import { HealthController } from "./health/health.controller";
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
     ThrottlerModule.forRoot([{ name: "default", ttl: 60_000, limit: () => Number(process.env.RATE_LIMIT ?? 120) }]),
     PrismaModule,
+    MailModule,
     AuthModule,
     PlansModule,
     StorageModule,

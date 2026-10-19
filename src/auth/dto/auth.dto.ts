@@ -25,3 +25,8 @@ export class LoginDto {
 export class RefreshDto {
   @IsString() refreshToken: string;
 }
+
+export class AcceptInviteDto {
+  @IsString() @MaxLength(200) token: string;
+  @IsString() @MinLength(8, { message: "Password must be at least 8 characters." }) @MaxLength(128) password: string;
+}

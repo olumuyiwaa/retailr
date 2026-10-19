@@ -104,6 +104,39 @@ export class AuthService {
     return this.issue(row.user);
   }
 
+  private async inviteFor(token: string) {
+    const m = await this.prisma.teamMember.findUnique({ where: { inviteTokenHash: sha256(token) }, include: { business: { select: { name: true, status: true } } } });
+    if (!m || m.status !== "INVITED" || !m.inviteExpiresAt || m.inviteExpiresAt.getTime() < Date.now()) {
+      throw AppError.badRequest("This invite link isn't valid or has expired. Ask for a new one.", "INVITE_INVALID");
+    }
+    return m;
+  }
+
+  /** What the accept-invite page shows before the person chooses a password. */
+  async invitePreview(token: string) {
+    const m = await this.inviteFor(token);
+    return { name: m.name, email: m.email, role: m.role.toLowerCase(), businessName: m.business.name };
+  }
+
+  /** Turns an invite into a login. The token works once. */
+  async acceptInvite(token: string, password: string): Promise<Session> {
+    const m = await this.inviteFor(token);
+    if (m.business.status === "SUSPENDED") throw AppError.forbidden("This business account is suspended. Contact Retailr support.", "BUSINESS_SUSPENDED");
+    if (m.business.status === "CANCELLED") throw AppError.forbidden("This business account has been cancelled.", "BUSINESS_CANCELLED");
+    const passwordHash = await argon2.hash(password);
+    const user = await this.prisma.$transaction(async (tx) => {
+      // claim the invite first so two people clicking at once can't both use it
+      const claimed = await tx.teamMember.updateMany({ where: { id: m.id, inviteTokenHash: sha256(token) }, data: { inviteTokenHash: null, inviteExpiresAt: null, status: "ACTIVE" } });
+      if (claimed.count === 0) throw AppError.badRequest("This invite link isn't valid or has expired. Ask for a new one.", "INVITE_INVALID");
+      const email = m.email.toLowerCase();
+      if (await tx.user.findUnique({ where: { email } })) throw AppError.conflict("An account with this email already exists.", "EMAIL_TAKEN");
+      const u = await tx.user.create({ data: { email, name: m.name, passwordHash, role: "BUSINESS_ADMIN", businessId: m.businessId } });
+      await tx.teamMember.update({ where: { id: m.id }, data: { userId: u.id } });
+      return u;
+    });
+    return this.issue(user);
+  }
+
   async logout(token: string) {
     await this.prisma.refreshToken.updateMany({ where: { tokenHash: sha256(token), revokedAt: null }, data: { revokedAt: new Date() } });
   }

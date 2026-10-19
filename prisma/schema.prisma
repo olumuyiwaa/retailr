@@ -244,6 +244,7 @@ model TeamMember {
   role       TeamRole
   status     TeamStatus @default(INVITED)
   inviteTokenHash String? @unique
+  inviteExpiresAt DateTime?
   createdAt  DateTime   @default(now())
 
   @@unique([businessId, email])
