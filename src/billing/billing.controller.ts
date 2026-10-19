@@ -1,7 +1,7 @@
 import { Body, Controller, Get, HttpCode, Param, Post } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { IsIn, IsOptional, IsString, MaxLength } from "class-validator";
-import { AuthContext, CurrentUser, Roles } from "../common/decorators";
+import { AuthContext, CurrentUser, Roles, MinRole } from "../common/decorators";
 import { PaymentsService } from "../payments/payments.service";
 import { BillingService } from "./billing.service";
 
@@ -14,6 +14,7 @@ export class ChangePlanDto {
 @ApiTags("billing")
 @ApiBearerAuth()
 @Roles("BUSINESS_ADMIN")
+@MinRole("OWNER")
 @Controller("business/billing")
 export class BillingController {
   constructor(private readonly billing: BillingService, private readonly payments: PaymentsService) {}

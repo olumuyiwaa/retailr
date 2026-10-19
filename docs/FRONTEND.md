@@ -42,5 +42,5 @@ When `GET /business/billing` returns `payments.enabled: true`, `change-plan` ref
 - **Errors:** `{ statusCode, code, message }`; show `message`. Unknown body fields are silently dropped, so a typo'd field name won't error: check the network tab if a value doesn't save.
 - **Tokens:** access tokens last ~15 minutes: on a 401, call `POST /auth/refresh` once, retry, and log out if that fails. Refresh tokens rotate; store the new one each time.
 - **Audit log page (optional):** `GET /business/audit` gives a business its own history; `GET /platform/audit` is for the super admin.
-- **Team roles:** manager and staff currently have the same access as the owner. Don't promise restricted staff access in the UI yet.
+- **Team roles:** use `teamRole` from the session (`owner|manager|staff`) to hide what a person can't use; the table in `API.md` has the rules and the API enforces them (403 `INSUFFICIENT_ROLE`).
 - **Customer messages:** email is delivered; SMS and WhatsApp are recorded only. Label them accordingly.

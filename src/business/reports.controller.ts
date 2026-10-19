@@ -2,7 +2,7 @@ import { Controller, Get, Query } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { Type } from "class-transformer";
 import { IsIn, IsInt, IsOptional } from "class-validator";
-import { AuthContext, CurrentUser, Roles } from "../common/decorators";
+import { AuthContext, CurrentUser, Roles, MinRole } from "../common/decorators";
 import { REPORT_DAYS, ReportsService } from "./reports.service";
 
 export class ReportQuery {
@@ -16,5 +16,5 @@ export class ReportQuery {
 export class ReportsController {
   constructor(private readonly reports: ReportsService) {}
   @Get("overview") overview(@CurrentUser() u: AuthContext) { return this.reports.overview(u.businessId!); }
-  @Get("reports/sales") sales(@CurrentUser() u: AuthContext, @Query() q: ReportQuery) { return this.reports.sales(u.businessId!, q.days ?? 30); }
+  @MinRole("MANAGER") @Get("reports/sales") sales(@CurrentUser() u: AuthContext, @Query() q: ReportQuery) { return this.reports.sales(u.businessId!, q.days ?? 30); }
 }

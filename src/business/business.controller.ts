@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Put, Query } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
-import { AuthContext, CurrentUser, Roles } from "../common/decorators";
+import { AuthContext, CurrentUser, Roles, MinRole } from "../common/decorators";
 import { CouponsService } from "./coupons.service";
 import { AudienceQuery, CouponDto, CouponStatusDto, GroupDto, InviteDto, ProfileDto, SendMessageDto } from "./dto/business.dto";
 import { GroupsService } from "./groups.service";
@@ -11,6 +11,7 @@ import { TeamService } from "./team.service";
 @ApiTags("business")
 @ApiBearerAuth()
 @Roles("BUSINESS_ADMIN")
+@MinRole("MANAGER")
 @Controller("business")
 export class BusinessController {
   constructor(
@@ -35,10 +36,10 @@ export class BusinessController {
   @Post("messages") sendMessage(@CurrentUser() u: AuthContext, @Body() d: SendMessageDto) { return this.messages.send(u.businessId!, d); }
 
   @Get("team") listTeam(@CurrentUser() u: AuthContext) { return this.team.list(u.businessId!); }
-  @Post("team") invite(@CurrentUser() u: AuthContext, @Body() d: InviteDto) { return this.team.invite(u.businessId!, d, u.userId); }
-  @HttpCode(200) @Post("team/:id/resend") resend(@CurrentUser() u: AuthContext, @Param("id") id: string) { return this.team.resend(u.businessId!, id, u.userId); }
-  @HttpCode(204) @Delete("team/:id") async removeMember(@CurrentUser() u: AuthContext, @Param("id") id: string) { await this.team.remove(u.businessId!, id); }
+  @MinRole("OWNER") @Post("team") invite(@CurrentUser() u: AuthContext, @Body() d: InviteDto) { return this.team.invite(u.businessId!, d, u.userId); }
+  @MinRole("OWNER") @HttpCode(200) @Post("team/:id/resend") resend(@CurrentUser() u: AuthContext, @Param("id") id: string) { return this.team.resend(u.businessId!, id, u.userId); }
+  @MinRole("OWNER") @HttpCode(204) @Delete("team/:id") async removeMember(@CurrentUser() u: AuthContext, @Param("id") id: string) { await this.team.remove(u.businessId!, id); }
 
-  @Get("profile") getProfile(@CurrentUser() u: AuthContext) { return this.profile.get(u.businessId!); }
-  @Patch("profile") updateProfile(@CurrentUser() u: AuthContext, @Body() d: ProfileDto) { return this.profile.update(u.businessId!, d); }
+  @MinRole("STAFF") @Get("profile") getProfile(@CurrentUser() u: AuthContext) { return this.profile.get(u.businessId!); }
+  @MinRole("OWNER") @Patch("profile") updateProfile(@CurrentUser() u: AuthContext, @Body() d: ProfileDto) { return this.profile.update(u.businessId!, d); }
 }

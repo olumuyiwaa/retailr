@@ -6,7 +6,7 @@ import { createWriteStream } from "fs";
 import { mkdir, rm } from "fs/promises";
 import { dirname, resolve, sep } from "path";
 import type { Request } from "express";
-import { AuthContext, CurrentUser, Public, Roles } from "../common/decorators";
+import { AuthContext, CurrentUser, Public, Roles, MinRole } from "../common/decorators";
 import { AppError } from "../common/errors";
 import { StorageService, UploadKind } from "./storage.service";
 
@@ -24,6 +24,7 @@ export class UploadsController {
   /** Step 1: ask for an upload URL. Step 2: PUT the file bytes there. Step 3: save `publicUrl` on the record. */
   @ApiBearerAuth()
   @Roles("BUSINESS_ADMIN")
+  @MinRole("MANAGER")
   @HttpCode(200)
   @Post("business/uploads")
   create(@CurrentUser() user: AuthContext, @Body() dto: CreateUploadDto) {

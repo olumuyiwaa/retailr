@@ -18,7 +18,7 @@ const currencyForCountry = (country: string): Currency => {
 };
 
 export interface Session {
-  user: ReturnType<typeof toAuthUser>;
+  user: ReturnType<typeof toAuthUser> & { teamRole?: "owner" | "manager" | "staff" };
   accessToken: string;
   refreshToken: string;
 }
@@ -144,7 +144,14 @@ export class AuthService {
   async me(userId: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw AppError.unauthorized();
-    return toAuthUser(user);
+    return { ...toAuthUser(user), ...(await this.teamRole(user)) };
+  }
+
+  /** A business admin's role on the team, so the app can show only what they may use. */
+  private async teamRole(user: User) {
+    if (user.role !== "BUSINESS_ADMIN" || !user.businessId) return {};
+    const m = await this.prisma.teamMember.findFirst({ where: { userId: user.id, businessId: user.businessId }, select: { role: true } });
+    return m ? { teamRole: m.role.toLowerCase() as "owner" | "manager" | "staff" } : {};
   }
 
   private async issue(user: User): Promise<Session> {
@@ -154,7 +161,7 @@ export class AuthService {
     await this.prisma.refreshToken.create({
       data: { userId: user.id, tokenHash: sha256(refreshToken), expiresAt: new Date(Date.now() + days * DAY) },
     });
-    return { user: toAuthUser(user), accessToken, refreshToken };
+    return { user: { ...toAuthUser(user), ...(await this.teamRole(user)) }, accessToken, refreshToken };
   }
 }
 

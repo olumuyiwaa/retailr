@@ -2,7 +2,7 @@ import { Controller, Get, Query, Res } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { IsOptional, IsString } from "class-validator";
 import type { Response } from "express";
-import { AuthContext, CurrentUser, Roles } from "../common/decorators";
+import { AuthContext, CurrentUser, MinRole, Roles } from "../common/decorators";
 import { PageQuery, withTotal } from "../common/paging";
 import { AuditService } from "./audit.service";
 
@@ -18,7 +18,7 @@ export class AuditController {
   constructor(private readonly audit: AuditService) {}
 
   /** A business sees only its own history. */
-  @Roles("BUSINESS_ADMIN") @Get("business/audit")
+  @Roles("BUSINESS_ADMIN") @MinRole("OWNER") @Get("business/audit")
   async mine(@CurrentUser() u: AuthContext, @Query() q: AuditQuery, @Res({ passthrough: true }) res: Response) {
     const r = await this.audit.list({ businessId: u.businessId!, ...(q.action ? { action: { contains: q.action, mode: "insensitive" } } : {}) }, q.page ?? 1, q.limit ?? 50);
     withTotal(res, r.total); return r.items;

@@ -157,6 +157,18 @@ List endpoints take `page` and `limit` (default 50, max 200) and return the tota
 | `GET /platform/plan-coupons`, `POST`, `PUT /:id`, `PATCH /:id/status`, `DELETE /:id` | Rows add `businessName`, `planNames`, `redeemed` (businesses using it) and `discountPerMonth` (sum over live subscriptions, yearly ÷ 12). Same code rules as business coupons; deleting a code leaves existing discounts in place. |
 | `GET /platform/analytics?days=7\|30\|90\|365` | `PlatformAnalytics`: the marketing-site funnel (visit → sign-up page → sign-ups from real `Business` rows), plus totals across all storefronts and the busiest stores. |
 
+## Team roles
+
+Every request from a business login is checked against the person's current team role (read fresh each time, so removing someone or changing their role takes effect at once; a removed member gets 403 `TEAM_ACCESS_REVOKED`). A role that is too low gets 403 `INSUFFICIENT_ROLE`. `GET /auth/me` and the login response carry `teamRole` (`owner`, `manager` or `staff`).
+
+| Role | Can |
+|---|---|
+| **Staff** | Orders (view, change status, send receipts), record sales, customers, read products and categories, the dashboard overview, read the store profile. |
+| **Manager** | Everything staff can, plus change products, categories and uploads, customer groups, messages, shopper coupons, sales reports, site analytics, and view the team. |
+| **Owner** | Everything, plus billing and plan changes, inviting/removing team members, editing store settings, and the audit log. |
+
+In code: `@MinRole("MANAGER")` on a route or controller (the method wins over the class); routes without it are open to the whole team.
+
 ## Audit log
 
 `GET /business/audit` (a business's own history) and `GET /platform/audit` (everything; filter `businessId`, `action`). Paged, newest first: `{ id, at, action, actorRole, actorEmail, businessId, targetId, meta }`. Every successful change under `/platform/*` and `/business/{coupons,team,billing,profile,groups}` is recorded as `"<METHOD> <route>"` with the field names changed (plus short scalar values, never anything that looks like a password, token or card). Payments and the non-payment suspension are recorded as `payment.checkout_paid`, `payment.renewal_paid`, `business.suspended_non_payment` with actor `SYSTEM`. Failed requests and reads are not recorded.
