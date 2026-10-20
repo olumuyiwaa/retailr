@@ -257,6 +257,24 @@ describe("Business extras", () => {
       expect(cleared.slug).toBe(r.slug);
     });
 
+    it("lets the owner choose which payment options the storefront offers", async () => {
+      const x = await newTenant(api); const sx = S(x);
+      const p = (await sx.post("/business/products", { name: "P", sku: "", category: "", description: "", price: 100, stock: 9, status: "active" }).expect(201)).body;
+      const slug = (await prisma.business.findUniqueOrThrow({ where: { id: x.businessId } })).slug;
+      const buy = (paymentMethod: string) => api().post(`/api/v1/store/${slug}/orders`).send({ customer: { name: "A B", email: "ab@example.com", phone: "1" }, shippingAddress: "x", paymentMethod, items: [{ productId: p.id, qty: 1 }] });
+      expect((await api().get(`/api/v1/store/${slug}`).expect(200)).body.paymentMethods).toEqual(["cod", "bank", "card"]); // existing stores keep everything
+      const r = (await sx.patch("/business/profile", { paymentMethods: ["cod", "bank"], bankDetails: "  Adire Hub, 0123456789, GTBank " }).expect(200)).body;
+      expect(r).toMatchObject({ paymentMethods: ["cod", "bank"], bankDetails: "Adire Hub, 0123456789, GTBank" });
+      const pub = (await api().get(`/api/v1/store/${slug}`).expect(200)).body;
+      expect(pub).toMatchObject({ paymentMethods: ["cod", "bank"], bankDetails: "Adire Hub, 0123456789, GTBank" });
+      const refused = (await buy("card").expect(400)).body;
+      expect(refused.code).toBe("PAYMENT_METHOD_UNAVAILABLE");
+      await buy("bank").expect(201);
+      await buy("cod").expect(201);
+      expect((await sx.patch("/business/profile", { paymentMethods: [] }).expect(400)).body.message).toBe("Offer at least one way to pay.");
+      await sx.patch("/business/profile", { paymentMethods: ["crypto"] }).expect(400);
+    });
+
     it("rejects bad values and can't change protected fields", async () => {
       const x = await newTenant(api); const sx = S(x);
       const bad = async (body: object) => (await sx.patch("/business/profile", body).expect(400)).body.message;

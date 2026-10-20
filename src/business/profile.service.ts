@@ -35,6 +35,8 @@ export class ProfileService {
       data.brandColor = dto.brandColor.toLowerCase();
     }
     if (dto.currency !== undefined) data.currency = dto.currency;
+    if (dto.paymentMethods !== undefined) data.paymentMethods = dto.paymentMethods;
+    if (dto.bankDetails !== undefined) data.bankDetails = dto.bankDetails.trim();
     if (dto.theme !== undefined) data.theme = dto.theme; // null goes back to the default theme
     if (dto.logo !== undefined) {
       if (dto.logo !== null && !this.storage.isOwnedUrl(businessId, dto.logo)) throw AppError.badRequest("Upload the logo again, then save.", "IMAGE_NOT_OWNED");
