@@ -1,5 +1,5 @@
 import { Type } from "class-transformer";
-import { IsBoolean, IsDefined, IsEmail, IsIn, IsInt, IsNumber, IsObject, IsOptional, IsString, MaxLength, Min, ValidateIf, ValidateNested } from "class-validator";
+import { ArrayMinSize, ArrayUnique, IsArray, IsBoolean, IsDefined, IsEmail, IsIn, IsInt, IsNumber, IsObject, IsOptional, IsString, MaxLength, Min, ValidateIf, ValidateNested } from "class-validator";
 
 export const THEME_IDS = ["classic", "showcase", "atelier"] as const;
 
@@ -55,6 +55,8 @@ export class ProfileDto {
   @IsOptional() @IsString() @MaxLength(80) city?: string;
   @IsOptional() @IsString() @MaxLength(80) category?: string;
   @IsOptional() @IsString() brandColor?: string;
+  @IsOptional() @IsArray() @ArrayMinSize(1, { message: "Offer at least one way to pay." }) @ArrayUnique() @IsIn(["cod", "bank", "card"], { each: true, message: "Choose from pay on delivery, bank transfer or card." }) paymentMethods?: ("cod" | "bank" | "card")[];
+  @IsOptional() @IsString() @MaxLength(500) bankDetails?: string;
   @IsOptional() @IsIn(["NGN", "GHS", "KES", "USD"]) currency?: "NGN" | "GHS" | "KES" | "USD";
   @ValidateIf((o) => o.theme !== undefined && o.theme !== null) @IsIn(THEME_IDS as unknown as string[], { message: "Choose one of the available themes." }) theme?: string | null;
   @IsOptional() @ValidateIf((o) => o.logo !== null) @IsString() logo?: string | null;

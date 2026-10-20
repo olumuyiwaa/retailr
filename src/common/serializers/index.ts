@@ -130,6 +130,8 @@ export const toPublicStore = (b: Business) => ({
   ...(b.theme ? { theme: b.theme } : {}),
   ...(b.logoUrl ? { logo: b.logoUrl } : {}),
   currency: b.currency,
+  paymentMethods: b.paymentMethods,
+  ...(b.bankDetails ? { bankDetails: b.bankDetails } : {}),
 });
 
 export const toOrder = (o: Order & { items?: OrderItem[] }, opts: { publicToken?: boolean } = {}) => ({
@@ -239,6 +241,8 @@ export const toBusiness = (b: Business, stats: { products: number; orders: numbe
   ...(b.theme ? { theme: b.theme } : {}),
   ...(b.logoUrl ? { logo: b.logoUrl } : {}),
   currency: b.currency,
+  paymentMethods: b.paymentMethods,
+  bankDetails: b.bankDetails,
   description: b.description,
   status: lower(b.status),
   planId: b.planId,
