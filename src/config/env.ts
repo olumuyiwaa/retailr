@@ -27,6 +27,13 @@ export class Env {
   /** "log" only logs outgoing mail (dev and tests); "smtp" sends through SMTP_URL. */
   @IsIn(["log", "smtp"]) MAIL_DRIVER: string = "log";
   @IsOptional() @IsString() SMTP_URL?: string;
+  /** "log" only logs texts (dev and tests); "termii" sends through Termii. */
+  @IsIn(["log", "termii"]) SMS_DRIVER: string = "log";
+  @IsOptional() @IsString() TERMII_API_KEY?: string;
+  @IsOptional() @IsString() TERMII_BASE_URL?: string;
+  /** The sender name on texts. In Nigeria it has to be registered with the provider first. */
+  @IsString() SMS_SENDER: string = "Retailr";
+  @IsOptional() @IsIn(["generic", "dnd"]) TERMII_CHANNEL?: string;
   @IsString() MAIL_FROM: string = "Retailr <noreply@retailr.com>";
   /** Where the web app lives; used to build the links in emails (accept invite, billing). */
   @IsString() APP_PUBLIC_URL: string = "http://localhost:3000";
@@ -52,6 +59,7 @@ export function validateEnv(raw: Record<string, unknown>): Env {
   }
   if (!errors.length && env.PAYMENTS_DRIVER === "paystack" && !env.PAYSTACK_SECRET_KEY) throw new Error("Invalid environment:\n - PAYMENTS_DRIVER=paystack needs PAYSTACK_SECRET_KEY");
   if (!errors.length && env.PAYMENTS_DRIVER === "fake" && env.NODE_ENV === "production") throw new Error("Invalid environment:\n - PAYMENTS_DRIVER=fake is not allowed in production");
+  if (!errors.length && env.SMS_DRIVER === "termii" && !env.TERMII_API_KEY) throw new Error("Invalid environment:\n - SMS_DRIVER=termii needs TERMII_API_KEY");
   if (!errors.length && env.MAIL_DRIVER === "smtp" && !env.SMTP_URL) throw new Error("Invalid environment:\n - MAIL_DRIVER=smtp needs SMTP_URL");
   if (errors.length) {
     const lines = errors.flatMap((e) => Object.values(e.constraints ?? {}));

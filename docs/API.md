@@ -30,7 +30,7 @@ Legend: 🌐 public (rate-limited) · 🏪 business admin · 👑 super admin.
 
 ## Public: pricing, storefront, tracking
 
-Invites: `GET /auth/invite/:token` previews `{ name, email, role, businessName }`; `POST /auth/accept-invite { token, password }` creates the login and returns a session. Links are valid for 7 days, work once, and point to `APP_PUBLIC_URL/admin/accept-invite?token=...` (the frontend page still needs building). Email messages to customers are sent as the message is recorded; SMS and WhatsApp are still only recorded.
+Invites: `GET /auth/invite/:token` previews `{ name, email, role, businessName }`; `POST /auth/accept-invite { token, password }` creates the login and returns a session. Links are valid for 7 days, work once, and point to `APP_PUBLIC_URL/admin/accept-invite?token=...` (the frontend page still needs building). Customer messages (email and SMS) are sent in the background as the message is recorded.
 
 `POST /track` notes: 1–50 events per batch; visitors are counted once per day and sessions once per `sessionId` (kept as hashed markers in `AnalyticsSeen`, pruned after two days); the first event of a new session supplies source, device and country. Page paths are reduced to a fixed set (`/`, `/shop`, `/product`, `/cart`, `/checkout`, `/get-started`, `/pricing`, `/features`, else `other`), product ids must be live products of that store, unknown or closed stores and bots are ignored with a 202, and the endpoint is rate-limited (`TRACK_RATE_LIMIT`, default 120 a minute per IP). Analytics windows are counted back from today in UTC.
 
@@ -106,14 +106,16 @@ Orders keep a nullable `customerId` (walk-in sales have none; the API returns `"
 | `GET /business/groups` | Each with `memberCount`. |
 | `GET /business/groups/:id/members` | Customers. |
 | `POST /business/groups`, `PUT /business/groups/:id`, `DELETE /business/groups/:id` | Names unique per business ("You already have a group with that name."). Auto groups need a valid rule value ("Enter a valid number for the rule."). |
-| `GET /business/messages/audience?type=all\|group&groupId&channel` | `{ count, skipped, label, sampleName }`: customers without an email (for email) or phone (for SMS and WhatsApp) are skipped. |
-| `GET /business/messages` | Newest first. |
+| `GET /business/messages/audience?type=all\|group&groupId&channel=email\|sms` | `{ count, skipped, label, sampleName }`: customers without an email (for email) or phone (for SMS) are skipped. |
+| `GET /business/messages` | Newest first. Each has `delivered` and `failed`, filled in a few seconds after sending (both 0 while still sending). |
 | `POST /business/messages` | `{ channel, subject?, body, audience }`. "Write a message first."; email needs a subject ("Add a subject for the email."); SMS is capped at 480 characters; no reachable recipients gives "No customers in this audience can be reached on that channel." Fill `{{first_name}}` and `{{store}}` per customer. Queue delivery. |
+
+**SMS delivery.** `SMS_DRIVER=termii` sends through Termii (`TERMII_API_KEY`, `SMS_SENDER`, optional `TERMII_CHANNEL=generic|dnd`); `log` only logs, for development. Numbers are turned into international form from the business's country (Nigeria 234, Ghana 233, Kenya 254); one that can't be, or that the provider refuses, counts as `failed`. In Nigeria the sender name must be registered with the provider first. WhatsApp is not a message channel (the API charges per message and needs approved templates); it stays as a sales channel and traffic source.
 
 **Group rules** (computed at read time, never stored): `SPENT_OVER` = total spent > value; `ORDERS_AT_LEAST` = orders ≥ value; `JOINED_WITHIN_DAYS` = joined within value days; `NO_ORDER_WITHIN_DAYS` = last order older than value days, or no order and joined longer ago than value days.
 
 ### Coupons, team, billing, profile
-Implemented so far: coupons, team, profile, groups and messages. `PUT` on a coupon or group replaces the editable fields (omitted optional fields are cleared). Unknown body fields are stripped, so slug, plan and status can't be changed through the profile. Messages are emailed when sent (SMS and WhatsApp are only recorded); team invites store only a hashed token and are emailed.
+Implemented so far: coupons, team, profile, groups and messages. `PUT` on a coupon or group replaces the editable fields (omitted optional fields are cleared). Unknown body fields are stripped, so slug, plan and status can't be changed through the profile. Messages are delivered when sent (email and SMS); team invites store only a hashed token and are emailed.
 | Endpoint | Notes |
 | --- | --- |
 | `GET/POST/PUT/DELETE /business/coupons`, `PATCH /business/coupons/:id/status` | Code is upper-cased, 3–20 of A–Z, 0–9 and `-` ("Use 3–20 letters, numbers or dashes for the code."); value > 0 ("Enter a discount greater than zero."); percent ≤ 100 ("A percentage can't be more than 100."); unique per business ("You already have a code with that name."). |
@@ -199,4 +201,4 @@ Rules: the amount and currency must match the invoice or the payment is rejected
 - **Stale payments:** a renewal still pending after an hour is resolved by asking the provider. Checkouts unpaid after 24 h are marked `FAILED`.
 - **Nightly (02:00 UTC):** prune expired refresh tokens and old analytics dedupe rows; recompute customer totals from paid orders.
 
-Still open: SMS/WhatsApp delivery for messages (email only today), and Flutterwave/Stripe adapters behind the same `PaymentProvider` interface.
+Still open: Flutterwave/Stripe adapters behind the same `PaymentProvider` interface.

@@ -3,32 +3,41 @@ import { AppError } from "../common/errors";
 import { toMessage } from "../common/serializers";
 import { MailService } from "../mail/mail.service";
 import { customerMessageMail, fillTemplate } from "../mail/templates";
+import { SmsService, normalizePhone } from "../sms/sms.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { AudienceDto, SendMessageDto } from "./dto/business.dto";
 import { membersWhere } from "./groups.service";
 
-type Channel = "email" | "sms" | "whatsapp";
+type Channel = "email" | "sms";
 const reachable = (c: { email: string | null; phone: string }, channel: Channel) =>
   channel === "email" ? /^\S+@\S+\.\S+$/.test(c.email ?? "") : c.phone.replace(/\D/g, "").length >= 7;
 
 @Injectable()
 export class MessagesService {
   private readonly inflight = new Set<Promise<void>>();
-  constructor(private readonly prisma: PrismaService, private readonly mail: MailService) {}
+  constructor(private readonly prisma: PrismaService, private readonly mail: MailService, private readonly sms: SmsService) {}
 
-  /** Resolves when every email handed off so far has been attempted (used by tests and graceful shutdown). */
+  /** Resolves when every message handed off so far has been attempted (used by tests and graceful shutdown). */
   async idle() { await Promise.allSettled([...this.inflight]); }
 
-  /** Sends one email per recipient with {{first_name}} and {{store}} filled in. Failures are logged and don't stop the rest. */
-  private async deliverEmails(store: string, subject: string, body: string, recipients: { name: string; email: string | null }[]) {
-    const queue = recipients.filter((r) => r.email);
+  /** Runs `send` for each recipient, five at a time. A failure is counted and doesn't stop the rest. */
+  private async deliver<T>(recipients: T[], send: (r: T) => Promise<boolean>): Promise<{ sent: number; failed: number }> {
+    const queue = [...recipients];
+    const out = { sent: 0, failed: 0 };
     const worker = async () => {
       for (let r = queue.shift(); r; r = queue.shift()) {
-        const v = { first_name: r.name.split(" ")[0] || "there", store };
-        await this.mail.trySend(customerMessageMail(r.email!, { subject: fillTemplate(subject, v), body: fillTemplate(body, v), store }));
+        let ok = false;
+        try { ok = await send(r); } catch { ok = false; }
+        if (ok) out.sent++; else out.failed++;
       }
     };
     await Promise.all(Array.from({ length: 5 }, worker));
+    return out;
+  }
+
+  private track(job: Promise<void>) {
+    this.inflight.add(job);
+    void job.finally(() => this.inflight.delete(job));
   }
 
   private async audience(businessId: string, audience: AudienceDto, channel: Channel) {
@@ -62,16 +71,26 @@ export class MessagesService {
     if (dto.channel === "sms" && body.length > 480) throw AppError.badRequest("SMS messages are limited to 480 characters.");
     const a = await this.audience(businessId, dto.audience, dto.channel);
     if (a.recipients.length === 0) throw AppError.badRequest("No customers in this audience can be reached on that channel.");
-    // Email goes out now (in the background). SMS and WhatsApp have no provider connected yet, so those are only recorded.
+    // Delivery happens in the background; the counts are written when it finishes.
     const m = await this.prisma.forBusiness(businessId).message.create({
       data: { channel: dto.channel.toUpperCase() as never, subject: dto.channel === "email" ? dto.subject!.trim() : null, body, audienceLabel: a.label, recipientCount: a.recipients.length } as never,
     });
-    if (dto.channel === "email") {
-      const biz = await this.prisma.business.findUniqueOrThrow({ where: { id: businessId }, select: { name: true } });
-      const job = this.deliverEmails(biz.name, dto.subject!.trim(), body, a.recipients);
-      this.inflight.add(job);
-      void job.finally(() => this.inflight.delete(job));
-    }
+    const biz = await this.prisma.business.findUniqueOrThrow({ where: { id: businessId }, select: { name: true, country: true } });
+    const subject = dto.subject?.trim() ?? "";
+    this.track((async () => {
+      const result = dto.channel === "email"
+        ? await this.deliver(a.recipients.filter((r) => r.email), (r) => {
+            const v = { first_name: r.name.split(" ")[0] || "there", store: biz.name };
+            return this.mail.trySend(customerMessageMail(r.email!, { subject: fillTemplate(subject, v), body: fillTemplate(body, v), store: biz.name }));
+          })
+        : await this.deliver(a.recipients, async (r) => {
+            const to = normalizePhone(r.phone, biz.country);
+            if (!to) return false;
+            await this.sms.send({ to, text: fillTemplate(body, { first_name: r.name.split(" ")[0] || "there", store: biz.name }) });
+            return true;
+          });
+      await this.prisma.message.update({ where: { id: m.id }, data: { sentCount: result.sent, failedCount: result.failed } }).catch(() => undefined);
+    })());
     return toMessage(m);
   }
 }

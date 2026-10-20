@@ -210,6 +210,8 @@ export const toMessage = (m: Message) => ({
   body: m.body,
   audienceLabel: m.audienceLabel,
   recipientCount: m.recipientCount,
+  delivered: m.sentCount,
+  failed: m.failedCount,
   sentAt: iso(m.sentAt)!,
 });
 

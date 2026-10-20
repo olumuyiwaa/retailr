@@ -43,4 +43,4 @@ When `GET /business/billing` returns `payments.enabled: true`, `change-plan` ref
 - **Tokens:** access tokens last ~15 minutes: on a 401, call `POST /auth/refresh` once, retry, and log out if that fails. Refresh tokens rotate; store the new one each time.
 - **Audit log page (optional):** `GET /business/audit` gives a business its own history; `GET /platform/audit` is for the super admin.
 - **Team roles:** use `teamRole` from the session (`owner|manager|staff`) to hide what a person can't use; the table in `API.md` has the rules and the API enforces them (403 `INSUFFICIENT_ROLE`).
-- **Customer messages:** email is delivered; SMS and WhatsApp are recorded only. Label them accordingly.
+- **Customer messages:** email and SMS are delivered in the background. `delivered` and `failed` on each message are 0 for a few seconds, so show "sending…" until their sum is above zero and refresh the list.

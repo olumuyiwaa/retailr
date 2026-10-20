@@ -28,14 +28,14 @@ export class GroupDto {
 export class AudienceQuery {
   @IsIn(["all", "group"]) type: "all" | "group";
   @IsOptional() @IsString() groupId?: string;
-  @IsIn(["email", "sms", "whatsapp"]) channel: "email" | "sms" | "whatsapp";
+  @IsIn(["email", "sms"], { message: "Choose email or SMS." }) channel: "email" | "sms";
 }
 export class AudienceDto {
   @IsIn(["all", "group"]) type: "all" | "group";
   @IsOptional() @IsString() groupId?: string;
 }
 export class SendMessageDto {
-  @IsIn(["email", "sms", "whatsapp"]) channel: "email" | "sms" | "whatsapp";
+  @IsIn(["email", "sms"], { message: "Choose email or SMS." }) channel: "email" | "sms";
   @IsOptional() @IsString() @MaxLength(200) subject?: string;
   @IsString({ message: "Write a message first." }) @MaxLength(5000) body: string;
   @ValidateNested() @Type(() => AudienceDto) audience: AudienceDto;

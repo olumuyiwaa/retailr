@@ -20,6 +20,7 @@ One container (the `Dockerfile`), one PostgreSQL database. Everything else is co
 | `API_PUBLIC_URL` | This API's public URL (used for uploaded file links). |
 | `STORAGE_DRIVER=s3` + `S3_*`, `STORAGE_PUBLIC_URL` | `local` is for development only: the container's disk isn't durable. |
 | `MAIL_DRIVER=smtp`, `SMTP_URL`, `MAIL_FROM` | With `log`, invites and receipts are only printed. |
+| `SMS_DRIVER=termii`, `TERMII_API_KEY`, `SMS_SENDER` | With `log`, texts are only printed. Register the sender name with Termii first. |
 | `TRUST_PROXY` | See operating notes. |
 | `DEMO_CARD_PAYMENTS=false` | Otherwise shopper card orders count as paid with no payment. |
 | `PAYMENTS_DRIVER=paystack`, `PAYSTACK_SECRET_KEY` | Subscription billing. Leave `none` to give plans away free. |
@@ -44,4 +45,4 @@ They run inside the API process, hourly, and are safe on several instances at on
 
 ## Not done yet
 
-SMS and WhatsApp delivery; Flutterwave and Stripe adapters; separate permissions for manager vs staff; the web app's accept-invite page (invite emails link to `APP_PUBLIC_URL/admin/accept-invite?token=…`).
+Flutterwave and Stripe adapters.

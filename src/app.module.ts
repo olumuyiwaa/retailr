@@ -12,6 +12,7 @@ import { PlatformModule } from "./platform/platform.module";
 import { AnalyticsModule } from "./analytics/analytics.module";
 import { JobsModule } from "./jobs/jobs.module";
 import { AuditModule } from "./audit/audit.module";
+import { SmsModule } from "./sms/sms.module";
 import { MailModule } from "./mail/mail.module";
 import { PrismaModule } from "./prisma/prisma.module";
 import { AuthModule } from "./auth/auth.module";
@@ -28,6 +29,7 @@ import { HealthController } from "./health/health.controller";
     ThrottlerModule.forRoot([{ name: "default", ttl: 60_000, limit: () => Number(process.env.RATE_LIMIT ?? 120) }]),
     PrismaModule,
     MailModule,
+    SmsModule,
     AuditModule,
     AuthModule,
     PlansModule,

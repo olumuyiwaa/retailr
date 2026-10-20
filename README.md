@@ -21,8 +21,8 @@ Backend for [Retailr](https://github.com/olumuyiwaa/retailr_frontend), a multi-t
 | Visit tracking (`POST /track`, public, de-duplicated, bounded) and analytics for businesses and the platform | `src/analytics` |
 | Subscription payments (Paystack, pluggable provider): checkout, signed webhook, renewals, dunning and trial jobs | `src/payments`, `src/jobs`, `src/billing` |
 | Audit log of platform and sensitive business changes | `src/audit` |
-| Email (log or SMTP driver): team invites with accept-invite, receipts, customer messages with `{{first_name}}` and `{{store}}` filled in | `src/mail`, `src/auth`, `src/business` |
-| 174 end-to-end tests against a real database (including tenant isolation) | `test/` |
+| SMS (Termii or log driver) and email (SMTP or log driver): team invites with accept-invite, receipts, customer messages with `{{first_name}}` and `{{store}}` filled in | `src/mail`, `src/auth`, `src/business` |
+| 181 end-to-end tests against a real database (including tenant isolation) | `test/` |
 
 Deploying: see `docs/DEPLOY.md` and the `Dockerfile`. Switching the web app over: `docs/FRONTEND.md`.
 
@@ -97,7 +97,7 @@ In the frontend repo, everything the UI calls lives in `src/services/*.ts` and r
 - **Storage usage.** `storageGb` in billing is a made-up number. Sum real upload sizes per business.
 - **Analytics.** History in the mock is generated. The real endpoints read `AnalyticsDay`; a business with no data yet shows zeros.
 - **Order limits.** "Orders this month" should use the business's billing period or calendar month consistently, and count online and recorded sales alike.
-- **Messages.** `sendMessage` only records the send. Delivery (email, SMS, WhatsApp provider) should be a queued job per recipient.
+- **Messages.** Email and SMS are sent in the background in this process, five at a time. At high volume this should become a queue with retries.
 
 ## Later
 

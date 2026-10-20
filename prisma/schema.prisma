@@ -553,6 +553,9 @@ model Message {
   body           String
   audienceLabel  String
   recipientCount Int
+  /// How many were handed to the mail/SMS provider, and how many it refused or couldn't be sent to.
+  sentCount      Int            @default(0)
+  failedCount    Int            @default(0)
   sentAt         DateTime       @default(now())
 
   @@index([businessId, sentAt])

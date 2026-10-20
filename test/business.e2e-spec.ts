@@ -162,9 +162,10 @@ describe("Business extras", () => {
     it("counts who can be reached on each channel", async () => {
       expect((await sx.get("/business/messages/audience?type=all&channel=email").expect(200)).body).toMatchObject({ count: 2, skipped: 1, label: "All customers", sampleName: "Ada" });
       expect((await sx.get("/business/messages/audience?type=all&channel=sms").expect(200)).body).toMatchObject({ count: 2, skipped: 1 });
-      expect((await sx.get(`/business/messages/audience?type=group&groupId=${groupId}&channel=whatsapp`).expect(200)).body).toEqual({ count: 1, skipped: 0, label: "Just Ada", sampleName: "Ada" });
+      expect((await sx.get(`/business/messages/audience?type=group&groupId=${groupId}&channel=sms`).expect(200)).body).toEqual({ count: 1, skipped: 0, label: "Just Ada", sampleName: "Ada" });
       expect((await sx.get("/business/messages/audience?type=group&groupId=nope&channel=sms").expect(400)).body.message).toBe("That group no longer exists.");
       await sx.get("/business/messages/audience?type=all&channel=fax").expect(400);
+      await sx.get("/business/messages/audience?type=all&channel=whatsapp").expect(400); // not offered
     });
 
     it("records a sent message with the right audience and recipient count", async () => {
