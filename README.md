@@ -34,6 +34,7 @@ npm install                     # also runs prisma generate
 npm run db:up                   # Postgres 16 via docker compose (or point DATABASE_URL at your own)
 npx prisma migrate deploy       # use `npm run prisma:migrate` while developing schema changes
 npm run seed
+npm run seed:demo               # optional: "Scentora", a demo perfume shop at /s/scentora (demo@scentora.example / Demo@12345)
 npm run start:dev               # http://localhost:4000/api/v1, docs at /docs
 npm test                        # needs DATABASE_URL pointing at a migrated, seeded database
 ```
