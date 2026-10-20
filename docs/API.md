@@ -175,18 +175,21 @@ In code: `@MinRole("MANAGER")` on a route or controller (the method wins over th
 
 `GET /business/audit` (a business's own history) and `GET /platform/audit` (everything; filter `businessId`, `action`). Paged, newest first: `{ id, at, action, actorRole, actorEmail, businessId, targetId, meta }`. Every successful change under `/platform/*` and `/business/{coupons,team,billing,profile,groups}` is recorded as `"<METHOD> <route>"` with the field names changed (plus short scalar values, never anything that looks like a password, token or card). Payments and the non-payment suspension are recorded as `payment.checkout_paid`, `payment.renewal_paid`, `business.suspended_non_payment` with actor `SYSTEM`. Failed requests and reads are not recorded.
 
-## Subscription payments (Paystack)
+## Subscription payments (Paystack, Flutterwave)
 
-Switched on with `PAYMENTS_DRIVER=paystack` and `PAYSTACK_SECRET_KEY`. With `none` (the default) plan changes apply directly, as before. `fake` is an in-memory provider for tests and local work and is refused in production.
+Switched on with `PAYMENTS_DRIVER=paystack` (needs `PAYSTACK_SECRET_KEY`), `flutterwave` (needs `FLUTTERWAVE_SECRET_KEY` and `FLUTTERWAVE_SECRET_HASH`) or both, comma separated: `paystack,flutterwave`. The first listed is the default. Each invoice and each saved card remembers its provider, so confirmations, webhooks and renewals always go back through the one that took the payment. With `none` (the default) plan changes apply directly, as before. `fake` and `fake-flutterwave` are in-memory providers for tests and local work and are refused in production.
 
 | Endpoint | Notes |
 |---|---|
-| `POST /business/billing/checkout` | `{ planId, cycle, couponCode? }` → `{ reference, checkoutUrl, invoice, charge: { amount, currency }, applied }`. Redirect the browser to `checkoutUrl`. Charged in the business's currency (the plan's `localPrices`, scaled by any discount). A 100% discount returns `applied: true` with no URL and the plan switches at once. A provider outage returns 502 `PAYMENT_PROVIDER_ERROR`. |
+| `POST /business/billing/checkout` | `{ planId, cycle, couponCode?, provider? }` (`provider` must be one of `payments.providers`, else 400 `PROVIDER_UNAVAILABLE`; omitted = default) → `{ reference, checkoutUrl, invoice, charge: { amount, currency }, applied }`. Redirect the browser to `checkoutUrl`. Charged in the business's currency (the plan's `localPrices`, scaled by any discount). A 100% discount returns `applied: true` with no URL and the plan switches at once. A provider outage returns 502 `PAYMENT_PROVIDER_ERROR`. |
 | `GET /business/billing/verify/:reference` | Call from the page Paystack returns to (`?reference=` on `/admin/business/billing`). Asks the provider and applies the result once: `{ status: "paid"\|"failed"\|"pending", applied }`. Only the business that started it can look it up. |
 | `POST /webhooks/paystack` 🌐 | Signed (`x-paystack-signature`, HMAC-SHA512 of the raw body). Bad signature → 401. Never trusts the body: it asks Paystack about the reference, then applies it. Always 200 for valid signatures. |
+| `POST /webhooks/flutterwave` 🌐 | Flutterwave has no body signature: it sends back the secret hash you configured in the `verif-hash` header, compared in constant time. Only `charge.completed` is acted on, and only after asking Flutterwave about `tx_ref`. Wrong or missing hash, or an unknown provider name → 401. |
 | `POST /business/billing/change-plan` | When payments are on, a paid target plan returns 402 `PAYMENT_REQUIRED` (use checkout). Free plans still switch directly and drop the saved card. |
 
-`GET /business/billing` also returns `payments: { enabled, provider, cardOnFile }`.
+`GET /business/billing` also returns `payments: { enabled, provider (default), providers (all enabled), cardOnFile }`.
+
+Flutterwave notes: it works in major units (naira), our code in minor units, so amounts are converted at the edge. Token charges can come back pending (the bank wants 3-D Secure); the stale-payment job asks again, and a renewal still undecided after 24 h is marked `FAILED` and the subscription `PAST_DUE`, so the daily retry can start a fresh attempt.
 
 Rules: the amount and currency must match the invoice or the payment is rejected. An invoice is applied exactly once (unique `providerReference`, row lock), however many times it's reported. A successful first payment sets `ACTIVE`, ends the trial, stores the reusable card, starts a period, redeems the discount code and emails a receipt. There is no proration: a plan change starts a fresh period. Paying lifts a `NON_PAYMENT` suspension, never an `ADMIN` one (`Business.suspensionReason`).
 
@@ -198,7 +201,7 @@ Rules: the amount and currency must match the invoice or the payment is rejected
 - **Trial expiry:** an unpaid ended trial becomes `PAST_DUE`; the owner is emailed. The store stays up.
 - **Renewals:** at `currentPeriodEnd`, charge the saved card (reference `renew_<sub>_<period>_<attempt>`). Free or fully discounted subscriptions roll on without a charge. No card on file → `PAST_DUE`.
 - **Dunning:** a `PAST_DUE` subscription retries once a day; after `DUNNING_GRACE_DAYS` (default 7) the business is suspended with reason `NON_PAYMENT`.
-- **Stale payments:** a renewal still pending after an hour is resolved by asking the provider. Checkouts unpaid after 24 h are marked `FAILED`.
+- **Stale payments:** a renewal still pending after an hour is resolved by asking the provider; after 24 h still undecided it is failed and the subscription goes `PAST_DUE`. Checkouts unpaid after 24 h are marked `FAILED`.
 - **Nightly (02:00 UTC):** prune expired refresh tokens and old analytics dedupe rows; recompute customer totals from paid orders.
 
-Still open: Flutterwave/Stripe adapters behind the same `PaymentProvider` interface.
+Still open: a Stripe adapter behind the same `PaymentProvider` interface.

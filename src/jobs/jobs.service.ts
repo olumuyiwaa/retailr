@@ -76,7 +76,18 @@ export class JobsService implements OnModuleInit, OnModuleDestroy {
   async resolveStalePayments(now = new Date()) {
     if (!this.payments.enabled) return 0;
     const stale = await this.prisma.invoice.findMany({ where: { kind: "RENEWAL", status: "PENDING", issuedAt: { lt: new Date(now.getTime() - HOUR) }, providerReference: { not: null } } });
-    for (const i of stale) await this.payments.confirm(i.providerReference!).catch(() => undefined);
+    for (const i of stale) {
+      let status = (await this.payments.confirm(i.providerReference!).catch(() => null))?.status ?? "pending";
+      // a charge that is still undecided after a day (say, a bank that never completed 3-D Secure) counts as a failure, or it would block every retry
+      if (status === "pending" && i.issuedAt.getTime() < now.getTime() - DAY) {
+        const r = await this.prisma.invoice.updateMany({ where: { id: i.id, status: "PENDING" }, data: { status: "FAILED" } });
+        if (r.count) status = "failed";
+      }
+      if (status === "failed") {
+        const sub = await this.prisma.subscription.findUnique({ where: { businessId: i.businessId }, include: { business: true } });
+        if (sub) await this.payments.markPastDue(sub.id, sub.business);
+      }
+    }
     return stale.length;
   }
 

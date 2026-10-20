@@ -11,6 +11,11 @@ export class ChangePlanDto {
   @IsOptional() @IsString() @MaxLength(40) couponCode?: string;
 }
 
+export class CheckoutDto extends ChangePlanDto {
+  /** Which enabled provider to pay through; the first (default) one when omitted. */
+  @IsOptional() @IsString() @MaxLength(30) provider?: string;
+}
+
 @ApiTags("billing")
 @ApiBearerAuth()
 @Roles("BUSINESS_ADMIN")
@@ -24,8 +29,8 @@ export class BillingController {
 
   /** Starts a payment for a plan. Send the person to `checkoutUrl`; they come back to the billing page with `?reference=...`. */
   @HttpCode(200) @Post("checkout")
-  async checkout(@CurrentUser() u: AuthContext, @Body() d: ChangePlanDto) {
-    const r = await this.payments.checkout(u.businessId!, d.planId, d.cycle, d.couponCode);
+  async checkout(@CurrentUser() u: AuthContext, @Body() d: CheckoutDto) {
+    const r = await this.payments.checkout(u.businessId!, d.planId, d.cycle, d.couponCode, d.provider);
     return r.applied ? { ...r, billing: await this.billing.get(u.businessId!) } : r;
   }
 

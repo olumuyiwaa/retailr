@@ -22,7 +22,7 @@ Backend for [Retailr](https://github.com/olumuyiwaa/retailr_frontend), a multi-t
 | Subscription payments (Paystack, pluggable provider): checkout, signed webhook, renewals, dunning and trial jobs | `src/payments`, `src/jobs`, `src/billing` |
 | Audit log of platform and sensitive business changes | `src/audit` |
 | SMS (Termii or log driver) and email (SMTP or log driver): team invites with accept-invite, receipts, customer messages with `{{first_name}}` and `{{store}}` filled in | `src/mail`, `src/auth`, `src/business` |
-| 181 end-to-end tests against a real database (including tenant isolation) | `test/` |
+| 196 end-to-end tests against a real database (including tenant isolation) | `test/` |
 
 Deploying: see `docs/DEPLOY.md` and the `Dockerfile`. Switching the web app over: `docs/FRONTEND.md`.
 

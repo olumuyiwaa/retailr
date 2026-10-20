@@ -1,4 +1,4 @@
-import { Controller, Headers, HttpCode, Post, Req, UnauthorizedException } from "@nestjs/common";
+import { Controller, Headers, HttpCode, Param, Post, Req, UnauthorizedException } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { SkipThrottle } from "@nestjs/throttler";
 import type { Request } from "express";
@@ -10,13 +10,16 @@ import { PaymentsService } from "./payments.service";
 export class PaymentsController {
   constructor(private readonly payments: PaymentsService) {}
 
-  /** Paystack calls this after a payment. We check the signature on the raw body, then ask Paystack what really happened before changing anything. */
-  @Public() @SkipThrottle() @HttpCode(200) @Post("paystack")
-  async paystack(@Req() req: Request & { rawBody?: Buffer }, @Headers("x-paystack-signature") signature?: string) {
-    const provider = this.payments.provider;
-    if (!provider || provider.name !== "paystack" || !req.rawBody || !provider.verifyWebhook(req.rawBody, signature)) throw new UnauthorizedException();
+  /**
+   * Providers call `/webhooks/paystack` or `/webhooks/flutterwave` after a payment. We check their signature (Paystack: HMAC of the raw body;
+   * Flutterwave: the secret hash in `verif-hash`), then ask the provider what really happened before changing anything.
+   */
+  @Public() @SkipThrottle() @HttpCode(200) @Post(":provider")
+  async webhook(@Param("provider") name: string, @Req() req: Request & { rawBody?: Buffer }, @Headers() headers: Record<string, string | string[] | undefined>) {
+    const provider = this.payments.byName(name);
+    if (!provider || !req.rawBody || !provider.verifyWebhook(req.rawBody, headers)) throw new UnauthorizedException();
     const ref = provider.webhookReference(req.body);
-    if (ref) await this.payments.confirm(ref).catch(() => undefined); // unknown references (not ours) are ignored; Paystack must still get a 200
+    if (ref) await this.payments.confirm(ref).catch(() => undefined); // unknown references (not ours) are ignored; the provider must still get a 200
     return { received: true };
   }
 }

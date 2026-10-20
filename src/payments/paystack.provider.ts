@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from "crypto";
-import { ChargeStatus, PaymentProvider, VerifiedCharge } from "./payment.provider";
+import { ChargeStatus, PaymentProvider, VerifiedCharge, WebhookHeaders } from "./payment.provider";
 
 /** The few Paystack endpoints we call. A real HTTP client and an in-memory fake both implement it. */
 export interface PaystackApi {
@@ -45,8 +45,9 @@ export class PaystackProvider implements PaymentProvider {
     return toCharge((await this.api.request("POST", "/transaction/charge_authorization", { authorization_code: i.authorizationCode, email: i.email, amount: i.amount, currency: i.currency, reference: i.reference })).data);
   }
   /** Paystack signs the raw request body with HMAC-SHA512 using the secret key. */
-  verifyWebhook(rawBody: Buffer, signature: string | undefined) {
-    if (!signature) return false;
+  verifyWebhook(rawBody: Buffer, headers: WebhookHeaders) {
+    const signature = headers["x-paystack-signature"];
+    if (typeof signature !== "string" || !signature) return false;
     const want = Buffer.from(createHmac("sha512", this.secret).update(rawBody).digest("hex"));
     const got = Buffer.from(signature);
     return want.length === got.length && timingSafeEqual(want, got);

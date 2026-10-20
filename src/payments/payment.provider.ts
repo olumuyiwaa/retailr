@@ -1,5 +1,9 @@
-/** What the billing code needs from a payment provider. Paystack is the first adapter; Flutterwave or Stripe would be more. */
+/** What the billing code needs from a payment provider. Paystack and Flutterwave are the adapters; Stripe would be another. */
 export const PAYMENT_PROVIDER = Symbol("PAYMENT_PROVIDER");
+/** Every enabled provider, default first. */
+export const PAYMENT_PROVIDERS = Symbol("PAYMENT_PROVIDERS");
+
+export type WebhookHeaders = Record<string, string | string[] | undefined>;
 
 export type ChargeStatus = "success" | "failed" | "pending";
 
@@ -22,7 +26,7 @@ export interface PaymentProvider {
   /** Charges a saved card without the customer present (renewals). */
   chargeAuthorization(i: { authorizationCode: string; email: string; amount: number; currency: string; reference: string }): Promise<VerifiedCharge>;
   /** True when the webhook really came from the provider. */
-  verifyWebhook(rawBody: Buffer, signature: string | undefined): boolean;
+  verifyWebhook(rawBody: Buffer, headers: WebhookHeaders): boolean;
   /** The transaction reference a webhook is about, or null for events we don't act on. */
   webhookReference(body: unknown): string | null;
 }

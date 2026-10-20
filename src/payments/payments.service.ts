@@ -10,7 +10,7 @@ import { money, paymentFailedMail, subscriptionPaidMail } from "../mail/template
 import { PlanCouponsService } from "../plans/plan-coupons.service";
 import { AuditService } from "../audit/audit.service";
 import { PrismaService } from "../prisma/prisma.service";
-import { PAYMENT_PROVIDER, PaymentProvider, VerifiedCharge } from "./payment.provider";
+import { PAYMENT_PROVIDERS, PaymentProvider, VerifiedCharge } from "./payment.provider";
 
 const D = (n: Prisma.Decimal.Value) => new Prisma.Decimal(n);
 const minor = (d: Prisma.Decimal) => d.mul(100).toDecimalPlaces(0).toNumber();
@@ -39,10 +39,14 @@ export class PaymentsService {
     private readonly mail: MailService,
     private readonly coupons: PlanCouponsService,
     private readonly audit: AuditService,
-    @Optional() @Inject(PAYMENT_PROVIDER) readonly provider: PaymentProvider | null,
+    @Optional() @Inject(PAYMENT_PROVIDERS) readonly providers: PaymentProvider[] = [],
   ) {}
 
-  get enabled() { return !!this.provider; }
+  /** The default provider: the first one enabled. */
+  get provider(): PaymentProvider | null { return this.providers[0] ?? null; }
+  get enabled() { return this.providers.length > 0; }
+  /** `null` for a name that isn't switched on (including payments being off). */
+  byName(name: string | null | undefined): PaymentProvider | null { return this.providers.find((p) => p.name === name) ?? null; }
 
   // ---------- pricing ----------
 
@@ -57,8 +61,10 @@ export class PaymentsService {
 
   // ---------- starting a payment ----------
 
-  async checkout(businessId: string, planId: string, cycleIn: "monthly" | "yearly", couponCode?: string): Promise<CheckoutResult> {
-    if (!this.provider) throw AppError.badRequest("Online payments aren't switched on yet.", "PAYMENTS_OFF");
+  async checkout(businessId: string, planId: string, cycleIn: "monthly" | "yearly", couponCode?: string, providerName?: string): Promise<CheckoutResult> {
+    if (!this.enabled) throw AppError.badRequest("Online payments aren't switched on yet.", "PAYMENTS_OFF");
+    const provider = providerName ? this.byName(providerName) : this.provider;
+    if (!provider) throw AppError.badRequest(`Payments through "${providerName}" aren't available.`, "PROVIDER_UNAVAILABLE");
     const cycle: BillingCycle = cycleIn === "yearly" ? "YEARLY" : "MONTHLY";
     const plan = await this.prisma.plan.findFirst({ where: { id: planId, isActive: true } });
     if (!plan) throw AppError.badRequest("Could not change plan.", "PLAN_CHANGE_FAILED");
@@ -78,9 +84,9 @@ export class PaymentsService {
     }
 
     const reference = `rtl_${randomBytes(12).toString("hex")}`;
-    const inv = await this.prisma.invoice.create({ data: { ...base, status: "PENDING", providerReference: reference, kind: "CHECKOUT" } });
+    const inv = await this.prisma.invoice.create({ data: { ...base, status: "PENDING", providerReference: reference, provider: provider.name, kind: "CHECKOUT" } });
     try {
-      const { authorizationUrl } = await this.provider.initialize({
+      const { authorizationUrl } = await provider.initialize({
         reference, email: biz.ownerEmail, amount: minor(charge.amount), currency: charge.currency,
         callbackUrl: `${this.mail.appUrl}/admin/business/billing?reference=${reference}`, metadata: { businessId, invoiceId: inv.id },
       });
@@ -96,11 +102,13 @@ export class PaymentsService {
 
   /** Used by the page the customer returns to, and by webhooks: asks the provider what happened, then applies it once. */
   async confirm(reference: string, onlyBusinessId?: string): Promise<{ status: "paid" | "failed" | "pending"; applied: boolean }> {
-    if (!this.provider) throw AppError.badRequest("Online payments aren't switched on yet.", "PAYMENTS_OFF");
+    if (!this.enabled) throw AppError.badRequest("Online payments aren't switched on yet.", "PAYMENTS_OFF");
     const inv = await this.prisma.invoice.findUnique({ where: { providerReference: reference } });
     if (!inv || (onlyBusinessId && inv.businessId !== onlyBusinessId)) throw AppError.notFound("Payment not found.");
     if (inv.status === "PAID") return { status: "paid", applied: false };
-    const v = await this.provider.verify(reference).catch((e) => { this.log.warn(`verify ${reference}: ${(e as Error).message}`); return null; });
+    const provider = this.byName(inv.provider);
+    if (!provider) return { status: "pending", applied: false }; // paid through a provider that's switched off right now
+    const v = await provider.verify(reference).catch((e) => { this.log.warn(`verify ${reference}: ${(e as Error).message}`); return null; });
     if (!v) return { status: "pending", applied: false };
     return this.settle(reference, v);
   }
@@ -147,7 +155,7 @@ export class PaymentsService {
       data: {
         planId: inv.planId, cycle, amount: inv.amount, planCouponId: inv.planCouponId, discount: inv.discount,
         status: "ACTIVE", trialEndsAt: null, cancelledAt: null, currentPeriodEnd: addPeriod(new Date(), cycle),
-        ...(authorizationCode ? { providerAuthorization: authorizationCode } : {}),
+        ...(authorizationCode ? { providerAuthorization: authorizationCode, provider: inv.provider } : {}),
       },
     });
     const lifts = biz.status === "SUSPENDED" && biz.suspensionReason === "NON_PAYMENT"; // paying fixes a billing suspension, never an admin one
@@ -189,9 +197,10 @@ export class PaymentsService {
    * number, so two servers running this at once create the same invoice, and the second one's insert is refused.
    */
   async renew(subId: string): Promise<"paid" | "failed" | "pending" | "skipped"> {
-    if (!this.provider) return "skipped";
     const sub = await this.prisma.subscription.findUnique({ where: { id: subId }, include: { business: true, plan: true } });
     if (!sub || !sub.providerAuthorization) return "skipped";
+    const provider = this.byName(sub.provider ?? "paystack"); // cards saved before providers were recorded are Paystack's
+    if (!provider) return "skipped";
     const period = sub.currentPeriodEnd.toISOString();
     const attempt = (await this.prisma.invoice.count({ where: { businessId: sub.businessId, kind: "RENEWAL", status: "FAILED", providerReference: { startsWith: `renew_${sub.id}_${period}_` } } })) + 1;
     const reference = `renew_${sub.id}_${period}_${attempt}`;
@@ -201,7 +210,7 @@ export class PaymentsService {
     try {
       inv = await this.prisma.invoice.create({ data: {
         businessId: sub.businessId, planId: sub.planId, description: `${sub.plan.name} plan (${sub.cycle.toLowerCase()}) renewal`, amount: sub.amount, status: "PENDING",
-        providerReference: reference, kind: "RENEWAL", attempt, cycle: sub.cycle, planCouponId: sub.planCouponId, discount: sub.discount, chargeAmount: charge.amount, chargeCurrency: charge.currency,
+        providerReference: reference, provider: provider.name, kind: "RENEWAL", attempt, cycle: sub.cycle, planCouponId: sub.planCouponId, discount: sub.discount, chargeAmount: charge.amount, chargeCurrency: charge.currency,
       } });
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") return "skipped"; // another worker has this attempt
@@ -209,7 +218,7 @@ export class PaymentsService {
     }
     let result: VerifiedCharge;
     try {
-      result = await this.provider.chargeAuthorization({ authorizationCode: sub.providerAuthorization, email: sub.business.ownerEmail, amount: minor(charge.amount), currency: charge.currency, reference });
+      result = await provider.chargeAuthorization({ authorizationCode: sub.providerAuthorization, email: sub.business.ownerEmail, amount: minor(charge.amount), currency: charge.currency, reference });
     } catch (e) {
       this.log.warn(`charge ${reference}: ${(e as Error).message}`);
       result = { status: "failed", amount: 0, currency: charge.currency };

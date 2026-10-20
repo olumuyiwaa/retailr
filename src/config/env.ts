@@ -38,9 +38,14 @@ export class Env {
   /** Where the web app lives; used to build the links in emails (accept invite, billing). */
   @IsString() APP_PUBLIC_URL: string = "http://localhost:3000";
   /** How the platform collects subscription payments. "none": plan changes apply straight away with no charge (demo). "fake" is for tests and local development only. */
-  @IsIn(["none", "paystack", "fake"]) PAYMENTS_DRIVER: string = "none";
+  /** One or more, comma separated, first is the default: "paystack", "flutterwave", "paystack,flutterwave". Test doubles: "fake", "fake-flutterwave". */
+  @IsString() PAYMENTS_DRIVER: string = "none";
   @IsOptional() @IsString() PAYSTACK_SECRET_KEY?: string;
   @IsOptional() @IsString() PAYSTACK_BASE_URL?: string;
+  @IsOptional() @IsString() FLUTTERWAVE_SECRET_KEY?: string;
+  /** The secret hash you set under Flutterwave → Settings → Webhooks; it comes back in the `verif-hash` header. */
+  @IsOptional() @IsString() FLUTTERWAVE_SECRET_HASH?: string;
+  @IsOptional() @IsString() FLUTTERWAVE_BASE_URL?: string;
   /** "false" turns the background jobs (renewals, trial expiry, cleanup) off, e.g. on a second web instance. */
   @IsIn(["true", "false"]) JOBS_ENABLED: string = "true";
   /** Days a late subscription stays online (retrying the card each day) before the store is suspended. */
@@ -48,6 +53,9 @@ export class Env {
   @IsOptional() @IsString() SEED_SUPER_ADMIN_EMAIL?: string;
   @IsOptional() @IsString() SEED_SUPER_ADMIN_PASSWORD?: string;
 }
+
+/** "paystack, flutterwave" → ["paystack", "flutterwave"] (order kept; the first is the default). */
+export const paymentDrivers = (raw: string | undefined) => (raw ?? "none").split(",").map((d) => d.trim()).filter(Boolean);
 
 /** Fails fast at boot with a readable list of what is missing or wrong. */
 export function validateEnv(raw: Record<string, unknown>): Env {
@@ -57,8 +65,16 @@ export function validateEnv(raw: Record<string, unknown>): Env {
     const missing = ["S3_BUCKET", "S3_REGION", "S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY", "STORAGE_PUBLIC_URL"].filter((k) => !(env as unknown as Record<string, unknown>)[k]);
     if (missing.length) throw new Error(`Invalid environment:\n - STORAGE_DRIVER=s3 needs ${missing.join(", ")}`);
   }
-  if (!errors.length && env.PAYMENTS_DRIVER === "paystack" && !env.PAYSTACK_SECRET_KEY) throw new Error("Invalid environment:\n - PAYMENTS_DRIVER=paystack needs PAYSTACK_SECRET_KEY");
-  if (!errors.length && env.PAYMENTS_DRIVER === "fake" && env.NODE_ENV === "production") throw new Error("Invalid environment:\n - PAYMENTS_DRIVER=fake is not allowed in production");
+  if (!errors.length) {
+    const drivers = paymentDrivers(env.PAYMENTS_DRIVER);
+    const bad = drivers.filter((d) => !["none", "paystack", "flutterwave", "fake", "fake-flutterwave"].includes(d));
+    const fail = (m: string) => { throw new Error(`Invalid environment:\n - ${m}`); };
+    if (bad.length) fail(`PAYMENTS_DRIVER has unknown value(s): ${bad.join(", ")}`);
+    if (drivers.includes("none") && drivers.length > 1) fail("PAYMENTS_DRIVER=none can't be combined with other drivers");
+    if (drivers.includes("paystack") && !env.PAYSTACK_SECRET_KEY) fail("PAYMENTS_DRIVER=paystack needs PAYSTACK_SECRET_KEY");
+    if (drivers.includes("flutterwave") && (!env.FLUTTERWAVE_SECRET_KEY || !env.FLUTTERWAVE_SECRET_HASH)) fail("PAYMENTS_DRIVER=flutterwave needs FLUTTERWAVE_SECRET_KEY and FLUTTERWAVE_SECRET_HASH");
+    if (env.NODE_ENV === "production" && drivers.some((d) => d.startsWith("fake"))) fail("PAYMENTS_DRIVER=fake is not allowed in production");
+  }
   if (!errors.length && env.SMS_DRIVER === "termii" && !env.TERMII_API_KEY) throw new Error("Invalid environment:\n - SMS_DRIVER=termii needs TERMII_API_KEY");
   if (!errors.length && env.MAIL_DRIVER === "smtp" && !env.SMTP_URL) throw new Error("Invalid environment:\n - MAIL_DRIVER=smtp needs SMTP_URL");
   if (errors.length) {

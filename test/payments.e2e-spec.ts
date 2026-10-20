@@ -266,6 +266,23 @@ describe("Payments", () => {
       expect((await prisma.invoice.findUniqueOrThrow({ where: { id: inv.id } })).status).toBe("PAID");
     });
 
+    it("a renewal still pending after a day is failed, so retries aren't blocked forever", async () => {
+      const x = await newTenant(api); await subscribe(x);
+      await expire(x);
+      fake.nextCharge = "pending";
+      try { await jobs.renewals(); } finally { fake.nextCharge = "success"; }
+      const inv = await prisma.invoice.findFirstOrThrow({ where: { businessId: x.businessId, kind: "RENEWAL" } });
+      await prisma.invoice.update({ where: { id: inv.id }, data: { issuedAt: new Date(Date.now() - 25 * 3_600_000) } });
+      await jobs.resolveStalePayments();
+      expect((await prisma.invoice.findUniqueOrThrow({ where: { id: inv.id } })).status).toBe("FAILED");
+      expect((await sub(x)).status).toBe("PAST_DUE");
+      // the next daily retry now gets a fresh attempt and collects
+      await prisma.invoice.update({ where: { id: inv.id }, data: { issuedAt: new Date(Date.now() - 25 * 3_600_000) } });
+      await jobs.renewals();
+      expect((await sub(x)).status).toBe("ACTIVE");
+      expect(await prisma.invoice.count({ where: { businessId: x.businessId, kind: "RENEWAL" } })).toBe(2);
+    });
+
     it("leaves cancelled subscriptions alone", async () => {
       const x = await newTenant(api); await subscribe(x);
       await prisma.subscription.update({ where: { businessId: x.businessId }, data: { cancelledAt: new Date() } });

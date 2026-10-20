@@ -274,6 +274,8 @@ model Subscription {
   providerSubscriptionId String?
   /// Reusable card token from the provider, used to renew without the customer being present.
   providerAuthorization  String?
+  /// Which provider the card token belongs to ("paystack", "flutterwave"); renewals are charged through it.
+  provider               String?
   trialReminderSentAt    DateTime?
   createdAt        DateTime           @default(now()) // "startedAt" in the API
   updatedAt        DateTime           @updatedAt
@@ -292,6 +294,8 @@ model Invoice {
   status      InvoiceStatus
   /// Unique per payment attempt: what the provider calls the transaction. Makes webhooks and retries idempotent.
   providerReference String? @unique
+  /// Which provider this payment went through.
+  provider    String?
   /// "CHECKOUT" (the business paid to start or change a plan) or "RENEWAL" (charged automatically at period end).
   kind        String        @default("CHECKOUT")
   attempt     Int           @default(1)

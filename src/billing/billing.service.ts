@@ -28,7 +28,7 @@ export class BillingService {
       plan: toPlan(p),
       ...(sub ? { subscription: toSubscription(sub) } : {}),
       /** Whether the page should send people through checkout to pay, and whether a card is saved for renewals. */
-      payments: { enabled: this.payments.enabled, provider: this.payments.provider?.name ?? null, cardOnFile: !!sub?.providerAuthorization },
+      payments: { enabled: this.payments.enabled, provider: this.payments.provider?.name ?? null, providers: this.payments.providers.map((p) => p.name), cardOnFile: !!sub?.providerAuthorization },
       usage: {
         products: { used: products, limit: p.maxProducts },
         staff: { used: staff, limit: p.maxStaff },
@@ -71,7 +71,7 @@ export class BillingService {
         where: { businessId },
         data: {
           planId: plan.id, cycle, amount: priced.amount, planCouponId: priced.planCouponId, discount: priced.discount,
-          ...(free ? { status: "ACTIVE", trialEndsAt: null, providerAuthorization: null } : {}), // a free plan stops card renewals
+          ...(free ? { status: "ACTIVE", trialEndsAt: null, providerAuthorization: null, provider: null } : {}), // a free plan stops card renewals
         },
       });
       if (priced.planCouponId) await this.coupons.redeem(tx, priced.planCouponId, businessId);

@@ -23,7 +23,7 @@ One container (the `Dockerfile`), one PostgreSQL database. Everything else is co
 | `SMS_DRIVER=termii`, `TERMII_API_KEY`, `SMS_SENDER` | With `log`, texts are only printed. Register the sender name with Termii first. |
 | `TRUST_PROXY` | See operating notes. |
 | `DEMO_CARD_PAYMENTS=false` | Otherwise shopper card orders count as paid with no payment. |
-| `PAYMENTS_DRIVER=paystack`, `PAYSTACK_SECRET_KEY` | Subscription billing. Leave `none` to give plans away free. |
+| `PAYMENTS_DRIVER=paystack` / `flutterwave` / `paystack,flutterwave`, plus `PAYSTACK_SECRET_KEY` and/or `FLUTTERWAVE_SECRET_KEY` + `FLUTTERWAVE_SECRET_HASH` | Subscription billing; the first listed is the default. Leave `none` to give plans away free. |
 
 ## Paystack
 
@@ -46,3 +46,10 @@ They run inside the API process, hourly, and are safe on several instances at on
 ## Not done yet
 
 Flutterwave and Stripe adapters.
+
+### Payment webhooks
+
+- **Paystack:** Settings → API Keys & Webhooks → Webhook URL `https://<api-host>/api/v1/webhooks/paystack`.
+- **Flutterwave:** Settings → Webhooks → URL `https://<api-host>/api/v1/webhooks/flutterwave`, and set "Secret hash" to the same value as `FLUTTERWAVE_SECRET_HASH` (any long random string). Tick "Receive webhook responses".
+
+Webhooks are a speed-up, not the source of truth: the billing page also confirms on return and a job resolves anything left pending.
