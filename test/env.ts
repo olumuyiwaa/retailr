@@ -12,3 +12,7 @@ process.env.DEMO_CARD_PAYMENTS = "true";
 process.env.TRACK_RATE_LIMIT = "100000";
 process.env.PAYMENTS_DRIVER = "none";
 process.env.JOBS_ENABLED = "false";
+// A developer's own .env is loaded for anything not set here, so pin everything that would otherwise reach a real service.
+process.env.STORAGE_PUBLIC_URL = "http://api.test/files";
+process.env.MAIL_DRIVER = "log";
+process.env.SMS_DRIVER = "log";
