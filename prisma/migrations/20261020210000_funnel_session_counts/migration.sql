@@ -9,3 +9,6 @@ UPDATE "AnalyticsDay" SET
   "productSessions" = LEAST("productViews", "sessions"),
   "cartSessions" = LEAST("addToCart", "productViews", "sessions"),
   "checkoutSessions" = LEAST("checkouts", "addToCart", "productViews", "sessions");
+
+-- Sessions that placed an order (the storefront now sends an "order" event). Older days can't be reconstructed.
+ALTER TABLE "AnalyticsDay" ADD COLUMN "orderSessions" INTEGER NOT NULL DEFAULT 0;

@@ -3,8 +3,8 @@ import { PrismaService } from "../prisma/prisma.service";
 
 const DAY = 86_400_000;
 type Counts = Record<string, number>;
-interface Day { visitors: number; sessions: number; pageViews: number; productViews: number; addToCart: number; checkouts: number; productSessions: number; cartSessions: number; checkoutSessions: number; orders: number; sources: Counts; devices: Counts; countries: Counts; pages: Counts; products: Counts }
-const empty = (): Day => ({ visitors: 0, sessions: 0, pageViews: 0, productViews: 0, addToCart: 0, checkouts: 0, productSessions: 0, cartSessions: 0, checkoutSessions: 0, orders: 0, sources: {}, devices: {}, countries: {}, pages: {}, products: {} });
+interface Day { visitors: number; sessions: number; pageViews: number; productViews: number; addToCart: number; checkouts: number; productSessions: number; cartSessions: number; checkoutSessions: number; orderSessions: number; orders: number; sources: Counts; devices: Counts; countries: Counts; pages: Counts; products: Counts }
+const empty = (): Day => ({ visitors: 0, sessions: 0, pageViews: 0, productViews: 0, addToCart: 0, checkouts: 0, productSessions: 0, cartSessions: 0, checkoutSessions: 0, orderSessions: 0, orders: 0, sources: {}, devices: {}, countries: {}, pages: {}, products: {} });
 const key = (d: Date) => d.toISOString().slice(0, 10);
 const daysAgoKey = (n: number, now: number) => key(new Date(now - n * DAY));
 const change = (a: number, b: number) => (b === 0 ? (a > 0 ? 100 : 0) : ((a - b) / b) * 100);
@@ -18,7 +18,7 @@ function windowOf(days: Map<string, Day>, from: number, to: number, now: number)
     if (!d) continue;
     t.visitors += d.visitors; t.sessions += d.sessions; t.pageViews += d.pageViews; t.productViews += d.productViews;
     t.addToCart += d.addToCart; t.checkouts += d.checkouts; t.orders += d.orders;
-    t.productSessions += d.productSessions; t.cartSessions += d.cartSessions; t.checkoutSessions += d.checkoutSessions;
+    t.productSessions += d.productSessions; t.cartSessions += d.cartSessions; t.checkoutSessions += d.checkoutSessions; t.orderSessions += d.orderSessions;
     for (const f of ["sources", "devices", "countries", "pages", "products"] as const) for (const [k, v] of Object.entries(d[f])) t[f][k] = (t[f][k] ?? 0) + v;
   }
   return t;
@@ -35,7 +35,7 @@ export class AnalyticsService {
     const rows = await this.prisma.analyticsDay.findMany({ where: { scope, date: { gte: since } } });
     const out = new Map<string, Day>();
     for (const r of rows) {
-      out.set(key(r.date), { visitors: r.visitors, sessions: r.sessions, pageViews: r.pageViews, productViews: r.productViews, addToCart: r.addToCart, checkouts: r.checkouts, productSessions: r.productSessions, cartSessions: r.cartSessions, checkoutSessions: r.checkoutSessions, orders: 0,
+      out.set(key(r.date), { visitors: r.visitors, sessions: r.sessions, pageViews: r.pageViews, productViews: r.productViews, addToCart: r.addToCart, checkouts: r.checkouts, productSessions: r.productSessions, cartSessions: r.cartSessions, checkoutSessions: r.checkoutSessions, orderSessions: r.orderSessions, orders: 0,
         sources: r.sources as Counts, devices: r.devices as Counts, countries: r.countries as Counts, pages: r.pages as Counts, products: r.products as Counts });
     }
     const counted = orders === "online-orders"
@@ -45,10 +45,10 @@ export class AnalyticsService {
     return out;
   }
 
-  private report(days: Map<string, Day>, range: number, labels: [string, string, string, string, string], now: number) {
+  private report(days: Map<string, Day>, range: number, labels: [string, string, string, string, string], now: number, last: "orderSessions" | "orders" = "orders") {
     const cur = windowOf(days, range, 0, now), prev = windowOf(days, range * 2, range, now);
-    // orders that never came through a tracked visit (recorded sales aside, e.g. direct links) can't push this past 100%
-    const conv = (t: Day) => (t.sessions ? (Math.min(t.orders, t.sessions) / t.sessions) * 100 : 0);
+    // a store's final step counts visits that placed an order, so orders that came in some other way (seed data, direct links, earlier history) don't inflate the rate
+    const conv = (t: Day) => (t.sessions ? (Math.min(t[last], t.sessions) / t.sessions) * 100 : 0);
     // each step counts sessions, so a step can't exceed the visits it came from
     const reach = (n: number) => Math.min(n, cur.sessions);
     const size = range <= 30 ? 1 : range <= 90 ? 7 : 30;
@@ -66,7 +66,7 @@ export class AnalyticsService {
         pageViews: { value: cur.pageViews, changePct: change(cur.pageViews, prev.pageViews) },
         conversionRate: { value: conv(cur), changePct: change(conv(cur), conv(prev)) },
         series,
-        funnel: [[labels[0], cur.sessions], [labels[1], reach(cur.productSessions)], [labels[2], reach(cur.cartSessions)], [labels[3], reach(cur.checkoutSessions)], [labels[4], cur.orders]].map(([label, count]) => ({ label, count })),
+        funnel: [[labels[0], cur.sessions], [labels[1], reach(cur.productSessions)], [labels[2], reach(cur.cartSessions)], [labels[3], reach(cur.checkoutSessions)], [labels[4], last === "orderSessions" ? reach(cur.orderSessions) : cur.orders]].map(([label, count]) => ({ label, count })),
         pages: ranked(cur.pages).map(([k, v]) => ({ label: PAGE_LABELS[k] ?? k, views: v })),
         sources: ranked(cur.sources).map(([source, sessions]) => ({ source, sessions })),
         devices: ranked(cur.devices).map(([device, sessions]) => ({ device, sessions })),
@@ -77,7 +77,7 @@ export class AnalyticsService {
 
   async business(businessId: string, range: number, now = Date.now()) {
     const days = await this.load(businessId, range, "online-orders", now);
-    const { cur, body } = this.report(days, range, ["Visits", "Viewed a product", "Added to cart", "Started checkout", "Placed an order"], now);
+    const { cur, body } = this.report(days, range, ["Visits", "Viewed a product", "Added to cart", "Started checkout", "Placed an order"], now, "orderSessions");
     const since = new Date(Date.UTC(new Date(now).getUTCFullYear(), new Date(now).getUTCMonth(), new Date(now).getUTCDate()) - (range - 1) * DAY);
     const top = ranked(cur.products).slice(0, 8);
     const ids = top.map(([id]) => id);
@@ -101,12 +101,12 @@ export class AnalyticsService {
     const t = new Map(traffic.map((r) => [r.scope, r._sum])), o = new Map(orders.map((r) => [r.businessId, r._count._all]));
     const rows = businesses.map((b) => {
       const sessions = t.get(b.id)?.sessions ?? 0, n = o.get(b.id) ?? 0;
-      return { id: b.id, name: b.name, slug: b.slug, visitors: t.get(b.id)?.visitors ?? 0, sessions, orders: n, conversionRate: sessions ? (n / sessions) * 100 : 0 };
+      return { id: b.id, name: b.name, slug: b.slug, visitors: t.get(b.id)?.visitors ?? 0, sessions, orders: n, conversionRate: sessions ? (Math.min(n, sessions) / sessions) * 100 : 0 };
     });
     const tot = rows.reduce((a, x) => ({ visitors: a.visitors + x.visitors, sessions: a.sessions + x.sessions, orders: a.orders + x.orders }), { visitors: 0, sessions: 0, orders: 0 });
     return {
       ...body,
-      stores: { ...tot, conversionRate: tot.sessions ? (tot.orders / tot.sessions) * 100 : 0 },
+      stores: { ...tot, conversionRate: tot.sessions ? (Math.min(tot.orders, tot.sessions) / tot.sessions) * 100 : 0 },
       topStores: rows.sort((a, b) => b.visitors - a.visitors || a.name.localeCompare(b.name)).slice(0, 8),
     };
   }

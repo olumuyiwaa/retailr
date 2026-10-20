@@ -583,6 +583,8 @@ model AnalyticsDay {
   productSessions  Int @default(0)
   cartSessions     Int @default(0)
   checkoutSessions Int @default(0)
+  /// Sessions that placed an online order (the storefront sends an "order" event once the order goes through)
+  orderSessions    Int @default(0)
   /// { "whatsapp": 12, "direct": 40, ... } and the same shape for the rest
   sources     Json     @default("{}")
   devices     Json     @default("{}")
@@ -593,7 +595,7 @@ model AnalyticsDay {
   @@unique([scope, date])
 }
 
-/// Dedupe markers for POST /track: one row per visitor (kind "v"), session (kind "s") or session-at-funnel-step (kinds "p", "c", "k") per scope per day, keyed by a
+/// Dedupe markers for POST /track: one row per visitor (kind "v"), session (kind "s") or session-at-funnel-step (kinds "p", "c", "k", "o") per scope per day, keyed by a
 /// hash so raw ids are never stored. Only needed for today, so rows older than two days are pruned.
 model AnalyticsSeen {
   scope   String

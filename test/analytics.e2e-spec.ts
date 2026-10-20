@@ -121,13 +121,18 @@ describe("Tracking and analytics", () => {
   it("measures conversion from real online orders, and top products by units sold online", async () => {
     const x = await newTenant(api); const s = await store(x); const p = await product(x, { name: "Hot item" });
     const v = id("v");
-    for (let i = 0; i < 4; i++) await hit(s.id, i ? id("v") : v, id("s"), [{ type: "page", path: "/" }, { type: "product", productId: p.id }]).expect(202);
+    const sessions = Array.from({ length: 4 }, () => id("s"));
+    for (let i = 0; i < 4; i++) await hit(s.id, i ? id("v") : v, sessions[i], [{ type: "page", path: "/" }, { type: "product", productId: p.id }]).expect(202);
     const buy = (qty: number) => api().post(`/api/v1/store/${s.slug}/orders`).send({ customer: { name: "A B", email: `ab${++n}@example.com`, phone: "1" }, shippingAddress: "x", paymentMethod: "cod", items: [{ productId: p.id, qty }] }).expect(201);
     await buy(2); await buy(1);
+    // the storefront reports an order once per visit that placed one
+    await hit(s.id, id("v"), sessions[0], [{ type: "order" }]).expect(202);
+    await hit(s.id, id("v"), sessions[0], [{ type: "order" }]).expect(202); // the same visit again counts once
+    await hit(s.id, id("v"), sessions[1], [{ type: "order" }]).expect(202);
     await api().post("/api/v1/business/sales").set(...x.auth).send({ items: [{ productId: p.id, qty: 5 }], channel: "in_store", paymentMethod: "cash", paid: true, handedOver: true }).expect(201); // not an online order
     const a = (await mine(x).expect(200)).body;
     expect(a.funnel[4]).toEqual({ label: "Placed an order", count: 2 });
-    expect(a.conversionRate.value).toBe(50); // 2 orders / 4 sessions
+    expect(a.conversionRate.value).toBe(50); // 2 of 4 visits placed an order
     expect(a.topProducts[0]).toEqual({ id: p.id, name: "Hot item", views: 4, orders: 3 });
   });
 

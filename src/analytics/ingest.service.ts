@@ -43,7 +43,7 @@ export class IngestService {
   }
 
   /** Marks something as seen today; true only the first time. */
-  private async firstTime(tx: Prisma.TransactionClient, scope: string, date: Date, kind: "v" | "s" | "p" | "c" | "k", id: string) {
+  private async firstTime(tx: Prisma.TransactionClient, scope: string, date: Date, kind: "v" | "s" | "p" | "c" | "k" | "o", id: string) {
     const r = await tx.analyticsSeen.createMany({ data: [{ scope, date, kind, keyHash: hash(`${scope}|${kind}|${id}`) }], skipDuplicates: true });
     return r.count === 1;
   }
@@ -63,19 +63,21 @@ export class IngestService {
       const newVisitor = await this.firstTime(tx, scope, date, "v", dto.visitorId);
       const newSession = await this.firstTime(tx, scope, date, "s", dto.sessionId);
 
-      const add = { visitors: newVisitor ? 1 : 0, sessions: newSession ? 1 : 0, pageViews: 0, productViews: 0, addToCart: 0, checkouts: 0, productSessions: 0, cartSessions: 0, checkoutSessions: 0 };
-      let sawProduct = false, sawCart = false, sawCheckout = false;
+      const add = { visitors: newVisitor ? 1 : 0, sessions: newSession ? 1 : 0, pageViews: 0, productViews: 0, addToCart: 0, checkouts: 0, productSessions: 0, cartSessions: 0, checkoutSessions: 0, orderSessions: 0 };
+      let sawProduct = false, sawCart = false, sawCheckout = false, sawOrder = false;
       const pages: Counts = {}, products: Counts = {}, sources: Counts = {}, devices: Counts = {}, countries: Counts = {};
       for (const e of dto.events) {
         if (e.type === "page") { add.pageViews++; bump(pages, pageKey(e.path)); }
         else if (e.type === "product") { if (e.productId && (scope === "platform" || real.has(e.productId))) { add.productViews++; sawProduct = true; if (scope !== "platform") bump(products, e.productId); } }
         else if (e.type === "add_to_cart") { add.addToCart++; sawCart = true; }
+        else if (e.type === "order") sawOrder = true;
         else { add.checkouts++; sawCheckout = true; }
       }
       // funnel steps count each session once, however many events it sent
       if (sawProduct && (await this.firstTime(tx, scope, date, "p", dto.sessionId))) add.productSessions = 1;
       if (sawCart && (await this.firstTime(tx, scope, date, "c", dto.sessionId))) add.cartSessions = 1;
       if (sawCheckout && (await this.firstTime(tx, scope, date, "k", dto.sessionId))) add.checkoutSessions = 1;
+      if (sawOrder && (await this.firstTime(tx, scope, date, "o", dto.sessionId))) add.orderSessions = 1;
       const first = dto.events[0];
       const wantCountry = newSession ? (first.country ?? "").trim() : "";
 
@@ -95,7 +97,7 @@ export class IngestService {
         data: {
           visitors: { increment: add.visitors }, sessions: { increment: add.sessions }, pageViews: { increment: add.pageViews },
           productViews: { increment: add.productViews }, addToCart: { increment: add.addToCart }, checkouts: { increment: add.checkouts },
-          productSessions: { increment: add.productSessions }, cartSessions: { increment: add.cartSessions }, checkoutSessions: { increment: add.checkoutSessions },
+          productSessions: { increment: add.productSessions }, cartSessions: { increment: add.cartSessions }, checkoutSessions: { increment: add.checkoutSessions }, orderSessions: { increment: add.orderSessions },
           sources: merge(row.sources, sources), devices: merge(row.devices, devices), countries: merge(row.countries, countries),
           pages: merge(row.pages, pages), products: merge(row.products, products),
         },

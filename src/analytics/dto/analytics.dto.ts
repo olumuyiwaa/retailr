@@ -7,7 +7,7 @@ export const DAYS = [7, 30, 90, 365] as const;
 export const MAX_EVENTS = 50;
 
 export class TrackEventDto {
-  @IsIn(["page", "product", "add_to_cart", "checkout"]) type: "page" | "product" | "add_to_cart" | "checkout";
+  @IsIn(["page", "product", "add_to_cart", "checkout", "order"]) type: "page" | "product" | "add_to_cart" | "checkout" | "order";
   @IsOptional() @IsString() @MaxLength(300) path?: string;
   @IsOptional() @IsString() @MaxLength(60) productId?: string;
   @IsOptional() @IsIn(SOURCES) source?: (typeof SOURCES)[number];
