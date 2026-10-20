@@ -7,7 +7,17 @@ import { tenantExtension } from "./tenant";
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   constructor(config: ConfigService) {
-    super({ adapter: new PrismaPg({ connectionString: config.getOrThrow<string>("DATABASE_URL") }) });
+    super({
+      adapter: new PrismaPg({
+        connectionString: config.getOrThrow<string>("DATABASE_URL"),
+        // Serverless Postgres (Neon, Supabase) suspends idle compute and drops its connections. Close ours first, wait long enough
+        // for a cold start to wake, and keep live sockets alive so a half-dead one is noticed.
+        max: Number(process.env.DB_POOL_MAX) || 10,
+        idleTimeoutMillis: 10_000,
+        connectionTimeoutMillis: 20_000,
+        keepAlive: true,
+      }),
+    });
   }
 
   async onModuleInit() { await this.$connect(); }

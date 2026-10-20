@@ -5,6 +5,7 @@ One container (the `Dockerfile`), one PostgreSQL database. Everything else is co
 ## First deploy
 
 1. **Database.** PostgreSQL 14+ (16 tested). Set `DATABASE_URL`.
+   - **Neon:** use the *pooled* connection string (host contains `-pooler`) with `?sslmode=require` for the app, and the *direct* string for `prisma migrate deploy` (run it with `DATABASE_URL` pointed at the direct host). Neon suspends idle compute (5 minutes on the free plan, so the first request after a quiet spell is slow, about a second); the app closes idle connections after 10 s and waits up to 20 s to connect, so it reconnects cleanly instead of failing. To stop suspensions entirely, turn off "Scale to zero" on a paid plan or ping `/api/v1/health` every 4 minutes (e.g. UptimeRobot). `DB_POOL_MAX` (default 10) caps connections; keep it low on free plans.
 2. **Migrations.** Run before starting a new version, from the same image: `npx prisma migrate deploy`. Run it once per release, not once per instance.
 3. **Seed (once).** Creates the plans and the super admin: `SEED_SUPER_ADMIN_EMAIL`, `SEED_SUPER_ADMIN_PASSWORD` (`npm run seed` needs dev dependencies, so run it from a checkout or a build stage, not the slim runtime image). Change the admin password after the first login.
 4. **Start.** `node dist/main` (the image does this). `GET /api/v1/health` is the health check.
