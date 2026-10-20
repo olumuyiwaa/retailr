@@ -3,8 +3,8 @@ import { PrismaService } from "../prisma/prisma.service";
 
 const DAY = 86_400_000;
 type Counts = Record<string, number>;
-interface Day { visitors: number; sessions: number; pageViews: number; productViews: number; addToCart: number; checkouts: number; orders: number; sources: Counts; devices: Counts; countries: Counts; pages: Counts; products: Counts }
-const empty = (): Day => ({ visitors: 0, sessions: 0, pageViews: 0, productViews: 0, addToCart: 0, checkouts: 0, orders: 0, sources: {}, devices: {}, countries: {}, pages: {}, products: {} });
+interface Day { visitors: number; sessions: number; pageViews: number; productViews: number; addToCart: number; checkouts: number; productSessions: number; cartSessions: number; checkoutSessions: number; orders: number; sources: Counts; devices: Counts; countries: Counts; pages: Counts; products: Counts }
+const empty = (): Day => ({ visitors: 0, sessions: 0, pageViews: 0, productViews: 0, addToCart: 0, checkouts: 0, productSessions: 0, cartSessions: 0, checkoutSessions: 0, orders: 0, sources: {}, devices: {}, countries: {}, pages: {}, products: {} });
 const key = (d: Date) => d.toISOString().slice(0, 10);
 const daysAgoKey = (n: number, now: number) => key(new Date(now - n * DAY));
 const change = (a: number, b: number) => (b === 0 ? (a > 0 ? 100 : 0) : ((a - b) / b) * 100);
@@ -18,6 +18,7 @@ function windowOf(days: Map<string, Day>, from: number, to: number, now: number)
     if (!d) continue;
     t.visitors += d.visitors; t.sessions += d.sessions; t.pageViews += d.pageViews; t.productViews += d.productViews;
     t.addToCart += d.addToCart; t.checkouts += d.checkouts; t.orders += d.orders;
+    t.productSessions += d.productSessions; t.cartSessions += d.cartSessions; t.checkoutSessions += d.checkoutSessions;
     for (const f of ["sources", "devices", "countries", "pages", "products"] as const) for (const [k, v] of Object.entries(d[f])) t[f][k] = (t[f][k] ?? 0) + v;
   }
   return t;
@@ -34,7 +35,7 @@ export class AnalyticsService {
     const rows = await this.prisma.analyticsDay.findMany({ where: { scope, date: { gte: since } } });
     const out = new Map<string, Day>();
     for (const r of rows) {
-      out.set(key(r.date), { visitors: r.visitors, sessions: r.sessions, pageViews: r.pageViews, productViews: r.productViews, addToCart: r.addToCart, checkouts: r.checkouts, orders: 0,
+      out.set(key(r.date), { visitors: r.visitors, sessions: r.sessions, pageViews: r.pageViews, productViews: r.productViews, addToCart: r.addToCart, checkouts: r.checkouts, productSessions: r.productSessions, cartSessions: r.cartSessions, checkoutSessions: r.checkoutSessions, orders: 0,
         sources: r.sources as Counts, devices: r.devices as Counts, countries: r.countries as Counts, pages: r.pages as Counts, products: r.products as Counts });
     }
     const counted = orders === "online-orders"
@@ -46,7 +47,10 @@ export class AnalyticsService {
 
   private report(days: Map<string, Day>, range: number, labels: [string, string, string, string, string], now: number) {
     const cur = windowOf(days, range, 0, now), prev = windowOf(days, range * 2, range, now);
-    const conv = (t: Day) => (t.sessions ? (t.orders / t.sessions) * 100 : 0);
+    // orders that never came through a tracked visit (recorded sales aside, e.g. direct links) can't push this past 100%
+    const conv = (t: Day) => (t.sessions ? (Math.min(t.orders, t.sessions) / t.sessions) * 100 : 0);
+    // each step counts sessions, so a step can't exceed the visits it came from
+    const reach = (n: number) => Math.min(n, cur.sessions);
     const size = range <= 30 ? 1 : range <= 90 ? 7 : 30;
     const series = [];
     for (let b = Math.ceil(range / size) - 1; b >= 0; b--) {
@@ -62,7 +66,7 @@ export class AnalyticsService {
         pageViews: { value: cur.pageViews, changePct: change(cur.pageViews, prev.pageViews) },
         conversionRate: { value: conv(cur), changePct: change(conv(cur), conv(prev)) },
         series,
-        funnel: [[labels[0], cur.sessions], [labels[1], cur.productViews], [labels[2], cur.addToCart], [labels[3], cur.checkouts], [labels[4], cur.orders]].map(([label, count]) => ({ label, count })),
+        funnel: [[labels[0], cur.sessions], [labels[1], reach(cur.productSessions)], [labels[2], reach(cur.cartSessions)], [labels[3], reach(cur.checkoutSessions)], [labels[4], cur.orders]].map(([label, count]) => ({ label, count })),
         pages: ranked(cur.pages).map(([k, v]) => ({ label: PAGE_LABELS[k] ?? k, views: v })),
         sources: ranked(cur.sources).map(([source, sessions]) => ({ source, sessions })),
         devices: ranked(cur.devices).map(([device, sessions]) => ({ device, sessions })),

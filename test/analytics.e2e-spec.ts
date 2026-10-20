@@ -69,7 +69,7 @@ describe("Tracking and analytics", () => {
     expect(a.visitors.value).toBe(13);
     expect(a.sessions.value).toBe(13);
     expect(a.pageViews.value).toBe(18); // every page event counts, only visitors and sessions are de-duplicated
-    expect(a.funnel[2].count).toBe(18);
+    expect(a.funnel[2].count).toBe(13); // funnel steps count sessions, not events
     expect(a.pages).toEqual([{ label: "Shop", views: 18 }]);
     expect(a.sources).toEqual([{ source: "search", sessions: 13 }]);
   });
