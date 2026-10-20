@@ -20,6 +20,19 @@ const pick = <T,>(a: readonly T[]): T => a[Math.floor(rnd() * a.length)];
 type P = { name: string; cat: string; desc: string; color: string; sku: string; sizes: [string, number, number][]; specs: [string, string][]; status?: "DRAFT" };
 const sz = (a: number, b: number, c: number, s = [14, 22, 9]): [string, number, number][] => [["30ml", a, s[0]], ["50ml", b, s[1]], ["100ml", c, s[2]]];
 
+/** Unsplash photos of unbranded perfume bottles (free to hotlink under the Unsplash licence). Branded ones are left out on purpose: this is a made-up shop. */
+const PHOTO = (id: string) => `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=900&q=80`;
+const PHOTOS = [
+  "1594035910387-fea47794261f", // black and gold bottle
+  "1458538977777-0549b2370168", // clear bottle
+  "1590736704728-f4730bb30770", // hand holding a glass bottle
+  "1622618991746-fe6004db3a47", // bottle and jars on yellow
+  "1615634260167-c8cdede054de", // glass bottle, selective focus
+  "1543422655-ac1c6ca993ed", // glass bottle
+  "1593487568720-92097fb460fb", // bottle on a wooden table
+  "1723391962154-8a2b6299bc09", // bottle on a table
+].map(PHOTO);
+
 const CATEGORIES = ["Women", "Men", "Unisex", "Oud & Attar", "Body Mist", "Gift Sets"];
 const PRODUCTS: P[] = [
   { name: "Lagos Nights", cat: "Women", sku: "SC-W-001", color: "#e8c5d8", desc: "Jasmine, black plum and warm amber. An evening scent that lingers.", sizes: sz(18000, 28000, 45000), specs: [["Family", "Floral amber"], ["Notes", "Jasmine, plum, amber"], ["Longevity", "8-10 hours"]] },
@@ -80,15 +93,17 @@ async function main() {
 
   // catalogue
   const cats = new Map<string, string>();
-  for (const name of CATEGORIES) cats.set(name, (await prisma.category.create({ data: { businessId: biz.id, name } })).id);
+  for (const [i, name] of CATEGORIES.entries()) cats.set(name, (await prisma.category.create({ data: { businessId: biz.id, name, imageUrl: PHOTOS[(i * 3) % PHOTOS.length] } })).id);
   const products: { id: string; name: string; status: string; variants: { id: string; name: string; price: number }[] }[] = [];
-  for (const p of PRODUCTS) {
+  for (const [pi, p] of PRODUCTS.entries()) {
     const draft = p.status === "DRAFT";
     const stock = p.sizes.reduce((a, s) => a + s[2], 0);
     const prod = await prisma.product.create({
       data: {
         businessId: biz.id, categoryId: cats.get(p.cat), name: p.name, sku: p.sku, description: p.desc, price: D(p.sizes[0][1]), stock, imageColor: p.color,
         status: draft ? "DRAFT" : stock === 0 ? "OUT_OF_STOCK" : "ACTIVE", specs: p.specs.map(([label, value]) => ({ label, value })),
+        // a cover plus a second angle, from the shared set (the same photo never appears twice on one product)
+        images: { create: [0, 1 + (pi % 3)].map((k, position) => ({ url: PHOTOS[(pi + k) % PHOTOS.length], position })) },
         variants: { create: p.sizes.map(([name, price, st], position) => ({ name, price: D(price), stock: st, position })) },
       },
       include: { variants: true },
