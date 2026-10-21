@@ -30,7 +30,7 @@ export class BookingsService {
 
   async getSettings(businessId: string) {
     const b = await this.prisma.business.findUniqueOrThrow({ where: { id: businessId } });
-    return { timezone: b.timezone, hours: (b.bookingHours as Hours | null) ?? DEFAULT_HOURS, configured: !!b.bookingHours, noticeHours: b.bookingNoticeHours, autoConfirm: b.bookingAutoConfirm };
+    return { timezone: b.timezone, hours: (b.bookingHours as unknown as Hours | null) ?? DEFAULT_HOURS, configured: !!b.bookingHours, noticeHours: b.bookingNoticeHours, autoConfirm: b.bookingAutoConfirm };
   }
 
   async updateSettings(businessId: string, dto: BookingSettingsDto) {
@@ -67,7 +67,7 @@ export class BookingsService {
       select: { startsAt: true, endsAt: true },
     });
     return freeSlots({
-      hours: (biz.bookingHours as Hours | null) ?? DEFAULT_HOURS, tz: biz.timezone, date, durationMins: product.durationMins ?? 60, capacity: product.maxConcurrent,
+      hours: (biz.bookingHours as unknown as Hours | null) ?? DEFAULT_HOURS, tz: biz.timezone, date, durationMins: product.durationMins ?? 60, capacity: product.maxConcurrent,
       booked: rows.map((r) => ({ start: r.startsAt.getTime(), end: r.endsAt.getTime() })), now, noticeMs: biz.bookingNoticeHours * 3_600_000,
     });
   }
