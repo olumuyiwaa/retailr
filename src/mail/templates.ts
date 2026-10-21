@@ -71,3 +71,18 @@ export const verifyEmailMail = (to: string, o: { name: string; link: string; hou
   text: `Hi ${o.name},\n\nConfirm your email address so we can reach you about orders, billing and sign-in:\n${o.link}\n\nThis link expires in ${o.hours} hours.`,
   html: shell("Confirm your email", `<p>Hi ${esc(o.name)},</p><p>Confirm your email address so we can reach you about orders, billing and sign-in.</p>${button(o.link, "Confirm my email")}<p style="font-size:13px;color:#667085">This link expires in ${o.hours} hours.</p>`),
 });
+
+export const when = (d: Date, tz: string) => new Intl.DateTimeFormat("en-GB", { timeZone: tz, weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(d);
+
+/** What the customer is told when a booking is made, confirmed or cancelled. */
+export const bookingMail = (to: string, o: { kind: "requested" | "confirmed" | "cancelled"; customer: string; business: string; service: string; startsAt: Date; timezone: string; link: string }): Mail => {
+  const at = when(o.startsAt, o.timezone);
+  const head = o.kind === "requested" ? "We have your booking request" : o.kind === "confirmed" ? "Your booking is confirmed" : "Your booking was cancelled";
+  const line = o.kind === "requested" ? `${o.business} will confirm it shortly.` : o.kind === "confirmed" ? `See you then at ${o.business}.` : `${o.business} has cancelled this booking. Get in touch to arrange another time.`;
+  return {
+    to,
+    subject: `${head}: ${o.service}`,
+    text: `Hi ${o.customer},\n\n${head}.\n\n${o.service}\n${at}\n\n${line}\n\nView or cancel your booking: ${o.link}`,
+    html: shell(head, `<p>Hi ${esc(o.customer)},</p><p><b>${esc(o.service)}</b><br>${esc(at)}</p><p>${esc(line)}</p>${button(o.link, "View or cancel my booking")}`),
+  };
+};

@@ -56,6 +56,14 @@ enum InvoiceStatus {
   REFUNDED
 }
 
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
 enum ProductKind {
   PRODUCT
   SERVICE
@@ -245,6 +253,14 @@ model Business {
   suspensionReason String?
   planId      String
   plan        Plan           @relation(fields: [planId], references: [id])
+  /// IANA zone the business's opening hours are in, e.g. "Africa/Lagos".
+  timezone    String         @default("Africa/Lagos")
+  /// { mon: [{ start: "09:00", end: "17:00" }], ... }; null = Monday to Friday 09:00-17:00.
+  bookingHours Json?
+  /// Shortest notice a customer can book with, in hours.
+  bookingNoticeHours Int     @default(2)
+  /// true = bookings are confirmed straight away; false = the team confirms each one.
+  bookingAutoConfirm Boolean @default(true)
   /// Last used order number for "#AD1180"-style numbering; increment atomically inside the order transaction.
   orderSeq    Int            @default(999)
   createdAt   DateTime       @default(now()) // "joinedAt" in the API
@@ -258,6 +274,7 @@ model Business {
   products      Product[]
   customers     Customer[]
   orders        Order[]
+  bookings      Booking[]
   coupons       Coupon[]
   groups        CustomerGroup[]
   messages      Message[]
@@ -416,6 +433,10 @@ model Product {
   kind        ProductKind   @default(PRODUCT)
   /// How long a service takes, in minutes (optional, shown to shoppers).
   durationMins Int?
+  /// Customers pick a time slot instead of adding it to a cart. Services only; needs durationMins.
+  bookable    Boolean       @default(false)
+  /// How many bookings of this service can overlap (staff or chairs).
+  maxConcurrent Int         @default(1)
   sku         String        @default("")
   description String        @default("")
   price       Decimal       @db.Decimal(12, 2)
@@ -432,9 +453,39 @@ model Product {
   images      ProductImage[]
   variants    ProductVariant[]
   orderItems  OrderItem[]
+  bookings    Booking[]
 
   @@index([businessId, status])
   @@index([businessId, categoryId])
+}
+
+/// A time slot a customer reserved for a bookable service. Name and price are copied so history survives edits and deletes.
+model Booking {
+  id          String        @id @default(cuid())
+  businessId  String
+  business    Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  productId   String?
+  product     Product?      @relation(fields: [productId], references: [id], onDelete: SetNull)
+  customerId  String?
+  customer    Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  serviceName String
+  variantName String?
+  price       Decimal       @db.Decimal(12, 2)
+  startsAt    DateTime
+  endsAt      DateTime
+  status      BookingStatus @default(CONFIRMED)
+  customerName  String
+  customerEmail String?
+  customerPhone String?
+  notes       String?
+  /// "store" (customer booked online) or "admin" (the team booked it)
+  source      String        @default("store")
+  publicToken String        @unique @default(cuid())
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([businessId, startsAt])
+  @@index([productId, startsAt])
 }
 
 model ProductImage {
@@ -478,6 +529,7 @@ model Customer {
   createdAt  DateTime @default(now())
 
   orders       Order[]
+  bookings    Booking[]
   groupMembers CustomerGroupMember[]
 
   @@unique([businessId, email])
@@ -668,6 +720,8 @@ enum NotificationType {
   LOW_STOCK
   OUT_OF_STOCK
   NEW_BUSINESS
+  NEW_BOOKING
+  BOOKING_CANCELLED
 }
 
 /// One row per person it is for, so each person has their own read state. Business admins get their business's; super admins get the platform's.

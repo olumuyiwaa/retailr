@@ -1,5 +1,5 @@
 import { Transform, Type } from "class-transformer";
-import { IsArray, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min, ValidateNested } from "class-validator";
+import { IsArray, IsBoolean, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min, ValidateNested } from "class-validator";
 
 export class CreateCategoryDto {
   @IsString({ message: "Enter a category name." }) name: string;
@@ -37,6 +37,10 @@ export class ProductDto {
   @IsOptional() @IsIn(["product", "service"]) kind?: "product" | "service";
   /** Minutes a service takes. Omit to keep, null to clear. */
   @IsOptional() @IsInt() @Min(1) @Max(1440) durationMins?: number | null;
+  /** Services only: customers pick a time slot instead of adding it to a cart. Needs durationMins. */
+  @IsOptional() @IsBoolean() bookable?: boolean;
+  /** How many bookings of this service may overlap. */
+  @IsOptional() @IsInt() @Min(1) @Max(50) maxConcurrent?: number;
   @IsIn(["active", "draft", "out_of_stock"]) status: "active" | "draft" | "out_of_stock";
   /** Photo URLs from /business/uploads, cover first. Omit to keep, [] to remove all. */
   @IsOptional() @IsArray() @IsString({ each: true }) images?: string[];

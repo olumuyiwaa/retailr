@@ -101,6 +101,7 @@ export const toProduct = (p: ProductRow) => {
     sku: p.sku,
     kind: lower(p.kind),
     ...(p.durationMins ? { durationMins: p.durationMins } : {}),
+    ...(p.kind === "SERVICE" && p.bookable ? { bookable: true, maxConcurrent: p.maxConcurrent } : {}),
     category: p.category?.name ?? "",
     description: p.description,
     price: num(p.price),
@@ -118,7 +119,7 @@ export const toProduct = (p: ProductRow) => {
 };
 
 // ---------- storefront, orders, customers ----------
-import type { Business, Customer, Order, OrderItem } from "@prisma/client";
+import type { Booking, Business, Customer, Order, OrderItem } from "@prisma/client";
 
 export const toPublicStore = (b: Business) => ({
   id: b.id,
@@ -251,4 +252,25 @@ export const toBusiness = (b: Business, stats: { products: number; orders: numbe
   planId: b.planId,
   joinedAt: iso(b.createdAt)!,
   stats,
+});
+
+export const toBooking = (b: Booking, opts: { publicToken?: boolean; timezone?: string } = {}) => ({
+  id: b.id,
+  productId: b.productId ?? "",
+  serviceName: b.serviceName,
+  ...(b.variantName ? { variantName: b.variantName } : {}),
+  price: num(b.price),
+  startsAt: iso(b.startsAt)!,
+  endsAt: iso(b.endsAt)!,
+  durationMins: Math.round((b.endsAt.getTime() - b.startsAt.getTime()) / 60_000),
+  status: lower(b.status),
+  customerId: b.customerId ?? "",
+  customerName: b.customerName,
+  ...(b.customerEmail ? { customerEmail: b.customerEmail } : {}),
+  ...(b.customerPhone ? { customerPhone: b.customerPhone } : {}),
+  ...(b.notes ? { notes: b.notes } : {}),
+  source: b.source,
+  ...(opts.timezone ? { timezone: opts.timezone } : {}),
+  ...(opts.publicToken ? { publicToken: b.publicToken } : {}),
+  createdAt: iso(b.createdAt)!,
 });

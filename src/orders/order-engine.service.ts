@@ -113,6 +113,7 @@ export class OrderEngine {
     const resolved = lines.map((l) => {
       const p = byId.get(l.productId);
       if (!p || (o.source === "store" && p.status === "DRAFT")) throw AppError.badRequest(msg.gone, "ITEM_GONE");
+      if (o.source === "store" && p.bookable) throw AppError.badRequest(`${p.name} has to be booked for a time slot, not bought through the cart.`, "BOOKING_REQUIRED");
       if (o.source === "sale" && l.price !== undefined && !(l.price >= 0)) throw AppError.badRequest(`Enter a valid price for ${p.name}.`);
       let variant = undefined as (typeof p.variants)[number] | undefined;
       if (p.variants.length) {

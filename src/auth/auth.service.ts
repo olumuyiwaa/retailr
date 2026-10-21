@@ -19,6 +19,10 @@ const VERIFY_HOURS = 48;
 /** One reset or verification mail per person per minute, so the form can't be used to flood an inbox. */
 const COOLDOWN_MS = 60_000;
 const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
+const timezoneForCountry = (country: string) => {
+  const c = country.trim().toLowerCase();
+  return c === "ghana" ? "Africa/Accra" : c === "kenya" ? "Africa/Nairobi" : c === "nigeria" ? "Africa/Lagos" : "UTC";
+};
 const currencyForCountry = (country: string): Currency => {
   const c = country.trim().toLowerCase();
   return c === "nigeria" ? "NGN" : c === "ghana" ? "GHS" : c === "kenya" ? "KES" : "USD";
@@ -65,7 +69,7 @@ export class AuthService {
       const business = await tx.business.create({
         data: {
           name: dto.businessName, slug, category: dto.category, ownerName: dto.ownerName, ownerEmail: email,
-          phone: dto.phone ?? "", country: dto.country, city: dto.city, currency: currencyForCountry(dto.country),
+          phone: dto.phone ?? "", country: dto.country, city: dto.city, currency: currencyForCountry(dto.country), timezone: timezoneForCountry(dto.country),
           status, planId: plan.id,
         },
       });

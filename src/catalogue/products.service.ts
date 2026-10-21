@@ -137,6 +137,7 @@ export class ProductsService {
     for (const url of images) {
       if (!this.storage.isOwnedUrl(businessId, url)) throw AppError.badRequest("Upload the photo again, then save.", "IMAGE_NOT_OWNED");
     }
+    if (service && dto.bookable && !dto.durationMins) throw AppError.badRequest("Add how long the service takes so customers can pick a time.", "DURATION_REQUIRED");
     const given = dto.stock ?? 0;
     if (!service && (!Number.isInteger(given) || given < 0)) throw AppError.badRequest("Stock must be a whole number, 0 or more.");
     const name = dto.name.trim();
@@ -155,7 +156,7 @@ export class ProductsService {
     const stock = service ? 0 : variants.length ? variants.reduce((s, v) => s + v.stock, 0) : given;
     const status = service ? (dto.status === "draft" ? "DRAFT" : "ACTIVE") : (stock === 0 && dto.status === "active" ? "out_of_stock" : dto.status).toUpperCase();
     return {
-      scalars: { name, kind: (service ? "SERVICE" : "PRODUCT") as never, ...(service ? (dto.durationMins !== undefined ? { durationMins: dto.durationMins } : {}) : { durationMins: null }), sku: dto.sku?.trim() ?? "", description: dto.description?.trim() ?? "", price: dto.price, stock, status, categoryId },
+      scalars: { name, kind: (service ? "SERVICE" : "PRODUCT") as never, bookable: service && !!dto.bookable, ...(dto.maxConcurrent !== undefined ? { maxConcurrent: dto.maxConcurrent } : {}), ...(service ? (dto.durationMins !== undefined ? { durationMins: dto.durationMins } : {}) : { durationMins: null }), sku: dto.sku?.trim() ?? "", description: dto.description?.trim() ?? "", price: dto.price, stock, status, categoryId },
       specs: dto.specs === undefined ? undefined : specs!.length ? specs : null,
       images,
       imagesGiven: dto.images !== undefined,
