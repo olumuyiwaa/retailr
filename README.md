@@ -2,7 +2,7 @@
 
 Backend for [Retailr](https://github.com/olumuyiwaa/retailr_frontend), a multi-tenant SaaS where small businesses subscribe, get a public storefront at `/s/<slug>` and run it from a business admin, with a super admin for the platform. This repo starts from a spec derived from the frontend's domain types (`src/types/saas.ts`) and mock services (`src/services/*.ts`), so the API matches what every screen already expects.
 
-**Status:** the API is built and tested (NestJS, Prisma 6, PostgreSQL) and the web app uses it. Still to build: online card payments at storefront checkout, password reset and email verification, and delivery fees (see "Later").
+**Status:** the API is built and tested (NestJS, Prisma 6, PostgreSQL) and the web app uses it. Still to build: online card payments at storefront checkout, and delivery fees (see "Later").
 
 | Done | Where |
 | --- | --- |
@@ -22,6 +22,8 @@ Backend for [Retailr](https://github.com/olumuyiwaa/retailr_frontend), a multi-t
 | Subscription payments (Paystack, pluggable provider): checkout, signed webhook, renewals, dunning and trial jobs | `src/payments`, `src/jobs`, `src/billing` |
 | Audit log of platform and sensitive business changes | `src/audit` |
 | Services alongside products (`kind`, no stock, never sold out) and one search over orders, customers and products | `src/catalogue`, `src/search` |
+| Password reset and email verification (single-use hashed links, sessions revoked on reset) | `src/auth`, `src/mail` |
+| Bookable services: opening hours, 30-minute slots, capacity per service, public booking and cancel links, team calendar | `src/bookings` |
 | Notifications for admins: in-app (new orders, low and sold-out stock, new sign-ups for the platform) plus browser push (Web Push, optional VAPID keys) | `src/notifications` |
 | SMS (Termii or log driver) and email (SMTP or log driver): team invites with accept-invite, receipts, customer messages with `{{first_name}}` and `{{store}}` filled in | `src/mail`, `src/auth`, `src/business` |
 | About 200 end-to-end tests against a real database (including tenant isolation) | `test/` |
@@ -95,7 +97,7 @@ The Next.js app ([retailr_frontend](https://github.com/olumuyiwaa/retailr_fronte
 
 - **Cancelled or refunded orders** put stock back and take `sold` down; customer totals are recomputed from paid orders whenever an order's payment or status changes.
 - **Public order links** use `Order.publicToken`, never the order id, so they can't be guessed.
-- **Passwords** are hashed with argon2. There is no email verification or password reset yet.
+- **Passwords** are hashed with argon2. Reset and email-verification links are random, single-use, expire, and only their SHA-256 hash is stored; a reset signs every device out. Asking for a link never reveals whether an email has an account. Verification is a reminder, not a gate: nobody is locked out for not confirming.
 - **Storage usage** in billing is the real sum of upload sizes. The plan's storage limit is enforced when an upload URL is requested (`PLAN_LIMIT_STORAGE`).
 - **Analytics** read `AnalyticsDay`; a business with no data yet shows zeros.
 - **Order limits** count online orders and recorded sales alike, per calendar month.
@@ -105,4 +107,4 @@ The Next.js app ([retailr_frontend](https://github.com/olumuyiwaa/retailr_fronte
 
 - Let one login belong to several businesses (replace `User.businessId` with a membership table).
 - Customer accounts for shoppers (optional login, saved addresses, order history), with guest checkout kept as the default.
-- Password reset and email verification, delivery zones and fees, inventory history, expenses and profit, and real card payments at storefront checkout (today the card option only works as a demo, see `DEMO_CARD_PAYMENTS`).
+- Delivery zones and fees, inventory history, expenses and profit, and real card payments at storefront checkout (today the card option only works as a demo, see `DEMO_CARD_PAYMENTS`).

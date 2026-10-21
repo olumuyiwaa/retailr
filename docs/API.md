@@ -13,7 +13,10 @@ Legend: 🌐 public (rate-limited) · 🏪 business admin · 👑 super admin.
 | `POST /auth/refresh` | 🌐 | Rotates the refresh token; revoke the old one. |
 | `POST /auth/logout` | any | Revokes the refresh token. |
 | `GET /auth/me` | any | `AuthUser`: `{ id, name, email, role, businessId? }`. |
-| `POST /auth/forgot-password`, `POST /auth/reset-password` | 🌐 | **Not built yet.** Planned; the mock had no reset either. |
+| `POST /auth/forgot-password` | 🌐 | `{ email }` → 204 whether or not the email has an account. Mails a link to `APP_PUBLIC_URL/admin/reset-password?token=...` (valid 60 minutes, one use). One mail per account per minute. |
+| `POST /auth/reset-password` | 🌐 | `{ token, password }` → 204. Sets the password, signs the account out on every device, and counts as proof of the inbox (confirms the email). Bad, used or expired token: 400 `RESET_INVALID`. |
+| `POST /auth/verify-email` | 🌐 | `{ token }` → 204. The link mailed at sign-up (`/admin/verify-email?token=...`, valid 48 hours, one use). 400 `VERIFY_INVALID` otherwise. |
+| `POST /auth/resend-verification` | 🔑 | 204; a fresh link replaces the old one. Does nothing once verified. |
 | `POST /auth/accept-invite` | 🌐 | New; a team member sets a password from the emailed invite token. |
 
 **Register rules**
@@ -107,6 +110,20 @@ Orders keep a nullable `customerId` (walk-in sales have none; the API returns `"
 | Endpoint | Notes |
 |---|---|
 | `GET /business/search?q=` | The top 5 orders (number, customer name, email, phone), customers (name, email, phone, city) and products/services (name, SKU) matching `q`: `{ q, orders, customers, products }`. Needs 2+ characters, otherwise all three lists are empty. Scoped to the signed-in business. |
+
+### Bookings
+
+A service with `bookable: true` (needs `durationMins`) is booked into a time slot instead of bought through the cart (`POST /store/:slug/orders` refuses it with `BOOKING_REQUIRED`). `maxConcurrent` is how many bookings of it can overlap.
+
+| Endpoint | Notes |
+|---|---|
+| `GET /business/booking-settings` | `{ timezone, hours, configured, noticeHours, autoConfirm }`. `hours` is `{ mon: [{ start: "09:00", end: "17:00" }], ... }`; a day left out is closed. Until the owner saves once, Monday to Friday 09:00-17:00 applies (`configured: false`). |
+| `PUT /business/booking-settings` | Manager and up. Validates the time zone, `HH:MM` times, start before end, no overlaps, at most 3 periods a day. `noticeHours` 0-168. |
+| `GET /business/bookings` | Optional `status`, `from`, `to` (ISO), `q`, `limit`. Soonest first when `from` is given, otherwise newest first. |
+| `POST /business/bookings` | The team books a customer in. `{ productId, variantId?, startsAt, customer: { name, phone?, email? }, notes? }`. May fall outside opening hours but not past `maxConcurrent` (409 `SLOT_TAKEN`). Always confirmed. |
+| `PATCH /business/bookings/:id/status` | `confirmed`, `completed`, `cancelled`, `no_show`. A cancelled booking can't be reopened. Confirming or cancelling emails the customer. |
+
+Public (🌐): `GET /store/:slug/services/:productId/slots?date=YYYY-MM-DD` → `{ date, timezone, durationMins, slots: [{ startsAt, label }] }` (labels are local time in the business's zone; slots start every 30 minutes inside opening hours, honour the notice period, hide times at capacity; dates from today up to 60 days ahead). `POST /store/:slug/bookings` → the booking with its `publicToken` (re-checked inside a per-business lock, so two people can't take the same slot: 409 `SLOT_TAKEN`). `GET /store/bookings/:token` and `POST /store/bookings/:token/cancel` serve the customer's own link (`/s/:slug/booking/:token`). Customers pay on arrival; a booking does not create an order. The team is notified of new and cancelled bookings, and the customer is emailed.
 
 ### Customer groups and messages
 | Endpoint | Notes |
