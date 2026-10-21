@@ -17,6 +17,11 @@ export class Env {
   @IsOptional() @IsString() STORAGE_PUBLIC_URL?: string;
   @IsString() LOCAL_UPLOAD_DIR: string = "./uploads";
   @IsInt() @Min(1024) UPLOAD_MAX_BYTES: number = 2_097_152;
+  /** Web Push (browser notifications for admins). Generate a pair with `npx web-push generate-vapid-keys`; leave both empty to turn push off. */
+  @IsOptional() @IsString() VAPID_PUBLIC_KEY?: string;
+  @IsOptional() @IsString() VAPID_PRIVATE_KEY?: string;
+  /** A mailto: address or https URL push services can contact you at. */
+  @IsOptional() @IsString() VAPID_SUBJECT?: string;
   @IsOptional() @IsString() S3_BUCKET?: string;
   @IsOptional() @IsString() S3_REGION?: string;
   @IsOptional() @IsString() S3_ENDPOINT?: string;
@@ -75,6 +80,7 @@ export function validateEnv(raw: Record<string, unknown>): Env {
     if (drivers.includes("flutterwave") && (!env.FLUTTERWAVE_SECRET_KEY || !env.FLUTTERWAVE_SECRET_HASH)) fail("PAYMENTS_DRIVER=flutterwave needs FLUTTERWAVE_SECRET_KEY and FLUTTERWAVE_SECRET_HASH");
     if (env.NODE_ENV === "production" && drivers.some((d) => d.startsWith("fake"))) fail("PAYMENTS_DRIVER=fake is not allowed in production");
   }
+  if (!errors.length && !!env.VAPID_PUBLIC_KEY !== !!env.VAPID_PRIVATE_KEY) throw new Error("Invalid environment:\n - VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY must be set together");
   if (!errors.length && env.SMS_DRIVER === "termii" && !env.TERMII_API_KEY) throw new Error("Invalid environment:\n - SMS_DRIVER=termii needs TERMII_API_KEY");
   if (!errors.length && env.MAIL_DRIVER === "smtp" && !env.SMTP_URL) throw new Error("Invalid environment:\n - MAIL_DRIVER=smtp needs SMTP_URL");
   if (errors.length) {

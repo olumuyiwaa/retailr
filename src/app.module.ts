@@ -14,6 +14,7 @@ import { JobsModule } from "./jobs/jobs.module";
 import { AuditModule } from "./audit/audit.module";
 import { SmsModule } from "./sms/sms.module";
 import { MailModule } from "./mail/mail.module";
+import { NotificationsModule } from "./notifications/notifications.module";
 import { PrismaModule } from "./prisma/prisma.module";
 import { AuthModule } from "./auth/auth.module";
 import { PlansModule } from "./plans/plans.module";
@@ -31,6 +32,7 @@ import { HealthController } from "./health/health.controller";
     MailModule,
     SmsModule,
     AuditModule,
+    NotificationsModule,
     AuthModule,
     PlansModule,
     StorageModule,

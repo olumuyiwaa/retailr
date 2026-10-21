@@ -146,6 +146,8 @@ model User {
   business     Business? @relation(fields: [businessId], references: [id], onDelete: Cascade)
   teamMember   TeamMember?
   refreshTokens RefreshToken[]
+  notifications Notification[]
+  pushSubscriptions PushSubscription[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -626,4 +628,45 @@ model AuditLog {
 
   @@index([businessId, at])
   @@index([at])
+}
+
+// ---------- notifications ----------
+
+enum NotificationType {
+  NEW_ORDER
+  LOW_STOCK
+  OUT_OF_STOCK
+  NEW_BUSINESS
+}
+
+/// One row per person it is for, so each person has their own read state. Business admins get their business's; super admins get the platform's.
+model Notification {
+  id         String           @id @default(cuid())
+  userId     String
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  businessId String?
+  type       NotificationType
+  title      String
+  body       String           @default("")
+  /// An app path to open, e.g. "/admin/business/orders"
+  link       String?
+  readAt     DateTime?
+  createdAt  DateTime         @default(now())
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
+}
+
+/// A browser that agreed to receive push notifications (Web Push). One person can have several.
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }

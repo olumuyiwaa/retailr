@@ -4,6 +4,7 @@ import { AuditService } from "../audit/audit.service";
 import { MailService } from "../mail/mail.service";
 import { trialEndingMail } from "../mail/templates";
 import { addPeriod, PaymentsService } from "../payments/payments.service";
+import { NotificationsService } from "../notifications/notifications.service";
 import { PrismaService } from "../prisma/prisma.service";
 
 const HOUR = 3_600_000, DAY = 86_400_000;
@@ -19,7 +20,7 @@ export class JobsService implements OnModuleInit, OnModuleDestroy {
   private timer?: NodeJS.Timeout;
   private lastNightly = "";
 
-  constructor(private readonly prisma: PrismaService, private readonly payments: PaymentsService, private readonly mail: MailService, private readonly config: ConfigService, private readonly audit: AuditService) {}
+  constructor(private readonly prisma: PrismaService, private readonly payments: PaymentsService, private readonly mail: MailService, private readonly config: ConfigService, private readonly audit: AuditService, private readonly notifications: NotificationsService) {}
 
   onModuleInit() {
     if ((this.config.get("JOBS_ENABLED") ?? "true") !== "true") return;
@@ -143,6 +144,7 @@ export class JobsService implements OnModuleInit, OnModuleDestroy {
       UPDATE "Customer" c SET "ordersCount" = COALESCE(s.n, 0), "totalSpent" = COALESCE(s.t, 0)
       FROM (SELECT c2."id", COUNT(o."id")::int AS n, SUM(o."total") AS t FROM "Customer" c2 LEFT JOIN "Order" o ON o."customerId" = c2."id" AND o."paymentStatus" = 'PAID' GROUP BY c2."id") s
       WHERE s."id" = c."id" AND (c."ordersCount" <> COALESCE(s.n, 0) OR c."totalSpent" <> COALESCE(s.t, 0))`;
-    return { refreshTokens: tokens.count, analyticsSeen: seen.count, customersFixed: customers };
+    const notifications = await this.notifications.prune(now);
+    return { refreshTokens: tokens.count, analyticsSeen: seen.count, customersFixed: customers, notifications };
   }
 }

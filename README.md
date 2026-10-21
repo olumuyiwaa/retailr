@@ -21,6 +21,7 @@ Backend for [Retailr](https://github.com/olumuyiwaa/retailr_frontend), a multi-t
 | Visit tracking (`POST /track`, public, de-duplicated, bounded) and analytics for businesses and the platform; funnel steps count distinct visits, and "placed an order" counts visits that ordered | `src/analytics` |
 | Subscription payments (Paystack, pluggable provider): checkout, signed webhook, renewals, dunning and trial jobs | `src/payments`, `src/jobs`, `src/billing` |
 | Audit log of platform and sensitive business changes | `src/audit` |
+| Notifications for admins: in-app (new orders, low and sold-out stock, new sign-ups for the platform) plus browser push (Web Push, optional VAPID keys) | `src/notifications` |
 | SMS (Termii or log driver) and email (SMTP or log driver): team invites with accept-invite, receipts, customer messages with `{{first_name}}` and `{{store}}` filled in | `src/mail`, `src/auth`, `src/business` |
 | About 200 end-to-end tests against a real database (including tenant isolation) | `test/` |
 

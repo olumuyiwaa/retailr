@@ -5,13 +5,14 @@ import { toCustomer, toOrder } from "../common/serializers";
 import { GroupsService } from "../business/groups.service";
 import { MailService } from "../mail/mail.service";
 import { receiptMail } from "../mail/templates";
+import { NotificationsService } from "../notifications/notifications.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { ListCustomersQuery, ListOrdersQuery, RecordSaleDto } from "./dto/orders.dto";
 import { holdsStock, OrderEngine } from "./order-engine.service";
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly prisma: PrismaService, private readonly engine: OrderEngine, private readonly groups: GroupsService, private readonly mail: MailService) {}
+  constructor(private readonly prisma: PrismaService, private readonly engine: OrderEngine, private readonly groups: GroupsService, private readonly mail: MailService, private readonly notifications: NotificationsService) {}
 
   async list(businessId: string, q: ListOrdersQuery) {
     const where: Prisma.OrderWhereInput = {
@@ -92,6 +93,7 @@ export class OrdersService {
         flatDiscount: dto.discount, notes: dto.notes,
       }),
     );
+    void this.notifications.stockAlerts(businessId, order.items);
     return toOrder(order);
   }
 
