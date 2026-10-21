@@ -98,6 +98,8 @@ export const toProduct = (p: ProductRow) => {
     businessId: p.businessId,
     name: p.name,
     sku: p.sku,
+    kind: lower(p.kind),
+    ...(p.durationMins ? { durationMins: p.durationMins } : {}),
     category: p.category?.name ?? "",
     description: p.description,
     price: num(p.price),

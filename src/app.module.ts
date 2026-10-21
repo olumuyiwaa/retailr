@@ -21,6 +21,7 @@ import { PlansModule } from "./plans/plans.module";
 import { StorageModule } from "./storage/storage.module";
 import { CatalogueModule } from "./catalogue/catalogue.module";
 import { OrdersModule } from "./orders/orders.module";
+import { SearchModule } from "./search/search.module";
 import { StoreModule } from "./store/store.module";
 import { HealthController } from "./health/health.controller";
 
@@ -38,6 +39,7 @@ import { HealthController } from "./health/health.controller";
     StorageModule,
     CatalogueModule,
     OrdersModule,
+    SearchModule,
     StoreModule,
     BusinessModule,
     PaymentsModule,

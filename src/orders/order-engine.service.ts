@@ -120,10 +120,12 @@ export class OrderEngine {
         if (!variant) throw AppError.badRequest(msg.option(p.name), "OPTION_REQUIRED");
       }
       const label = variant ? `${p.name} (${variant.name})` : p.name;
-      const available = variant ? variant.stock : p.stock;
-      // storefront: a sold-out status also blocks the sale even if a stale stock number says otherwise
-      if (available <= 0 || (!variant && o.source === "store" && p.status === "OUT_OF_STOCK")) throw AppError.badRequest(`${label} is sold out.`, "SOLD_OUT");
-      if (l.qty > available) throw AppError.badRequest(`Only ${available} of ${label} left in stock.`, "STOCK_INSUFFICIENT");
+      if (p.kind === "PRODUCT") {
+        const available = variant ? variant.stock : p.stock;
+        // storefront: a sold-out status also blocks the sale even if a stale stock number says otherwise
+        if (available <= 0 || (!variant && o.source === "store" && p.status === "OUT_OF_STOCK")) throw AppError.badRequest(`${label} is sold out.`, "SOLD_OUT");
+        if (l.qty > available) throw AppError.badRequest(`Only ${available} of ${label} left in stock.`, "STOCK_INSUFFICIENT");
+      }
       const price = D(o.source === "sale" && l.price !== undefined ? l.price : variant?.price ?? p.price);
       return { product: p, variant, label, qty: l.qty, price };
     });
@@ -221,6 +223,12 @@ export class OrderEngine {
 
   /** Guarded decrement: the update only succeeds while enough stock is left, so two shoppers can't both buy the last item. */
   async takeStock(tx: Tx, productId: string, variantId: string | undefined, qty: number, label: string) {
+    // services have no stock to take; they only count towards "sold"
+    const kind = (await tx.product.findUnique({ where: { id: productId }, select: { kind: true } }))?.kind;
+    if (kind === "SERVICE") {
+      await tx.product.updateMany({ where: { id: productId }, data: { sold: { increment: qty } } });
+      return;
+    }
     const short = async () => {
       const left = variantId
         ? (await tx.productVariant.findUnique({ where: { id: variantId }, select: { stock: true } }))?.stock ?? 0
@@ -238,6 +246,11 @@ export class OrderEngine {
 
   /** Puts stock back (cancelled or refunded order) and takes `sold` down with it. */
   async returnStock(tx: Tx, productId: string, variantId: string | null, qty: number) {
+    const kind = (await tx.product.findUnique({ where: { id: productId }, select: { kind: true } }))?.kind;
+    if (kind === "SERVICE") {
+      await tx.$executeRaw`UPDATE "Product" SET "sold" = GREATEST("sold" - ${qty}, 0) WHERE id = ${productId}`;
+      return;
+    }
     if (variantId) await tx.productVariant.updateMany({ where: { id: variantId, productId }, data: { stock: { increment: qty } } });
     await tx.$executeRaw`UPDATE "Product" SET "stock" = "stock" + ${qty}, "sold" = GREATEST("sold" - ${qty}, 0) WHERE id = ${productId}`;
     await tx.product.updateMany({ where: { id: productId, stock: { gt: 0 }, status: "OUT_OF_STOCK" }, data: { status: "ACTIVE" } });

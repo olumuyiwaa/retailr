@@ -23,7 +23,7 @@ function cleanSpecs(input?: { label: string; value: string }[]) {
   return rows;
 }
 
-function cleanVariants(input?: ProductDto["variants"]) {
+function cleanVariants(input: ProductDto["variants"], service: boolean) {
   if (!input?.length) return [];
   const seen = new Set<string>();
   return input.map((v, position) => {
@@ -31,9 +31,10 @@ function cleanVariants(input?: ProductDto["variants"]) {
     if (!name) throw AppError.badRequest("Every variant needs a name.");
     if (seen.has(name.toLowerCase())) throw AppError.badRequest(`Two variants are both called "${name}".`);
     seen.add(name.toLowerCase());
-    if (!Number.isInteger(v.stock) || v.stock < 0) throw AppError.badRequest(`Stock for "${name}" must be a whole number, 0 or more.`);
+    const stock = service ? 0 : v.stock ?? 0;
+    if (!Number.isInteger(stock) || stock < 0) throw AppError.badRequest(`Stock for "${name}" must be a whole number, 0 or more.`);
     if (v.price !== undefined && v.price !== null && !(v.price >= 0)) throw AppError.badRequest(`Enter a valid price for "${name}".`);
-    return { id: v.id, name, price: v.price ?? null, stock: v.stock, position };
+    return { id: v.id, name, price: v.price ?? null, stock, position };
   });
 }
 
@@ -41,8 +42,9 @@ function cleanVariants(input?: ProductDto["variants"]) {
 export class ProductsService {
   constructor(private readonly prisma: PrismaService, private readonly storage: StorageService) {}
 
-  async list(businessId: string, q: { q?: string; status?: string; categoryId?: string; page?: number; limit?: number }) {
+  async list(businessId: string, q: { q?: string; kind?: string; status?: string; categoryId?: string; page?: number; limit?: number }) {
     const where: Prisma.ProductWhereInput = {
+      ...(q.kind ? { kind: q.kind.toUpperCase() as never } : {}),
       ...(q.status ? { status: q.status.toUpperCase() as never } : {}),
       ...(q.categoryId ? { categoryId: q.categoryId } : {}),
       ...(q.q?.trim() ? { OR: [{ name: { contains: q.q.trim(), mode: "insensitive" } }, { sku: { contains: q.q.trim(), mode: "insensitive" } }] } : {}),
@@ -128,15 +130,17 @@ export class ProductsService {
   /** Validates the body and works out what to store. */
   private async prepare(businessId: string, dto: ProductDto) {
     const specs = cleanSpecs(dto.specs);
-    const variants = cleanVariants(dto.variants);
+    const service = dto.kind === "service";
+    const variants = cleanVariants(dto.variants, service);
     if (dto.images && dto.images.length > MAX_PRODUCT_IMAGES) throw AppError.badRequest(`A product can have up to ${MAX_PRODUCT_IMAGES} photos.`);
     const images = (dto.images ?? []).filter(Boolean);
     for (const url of images) {
       if (!this.storage.isOwnedUrl(businessId, url)) throw AppError.badRequest("Upload the photo again, then save.", "IMAGE_NOT_OWNED");
     }
-    if (!Number.isInteger(dto.stock) || dto.stock < 0) throw AppError.badRequest("Stock must be a whole number, 0 or more.");
+    const given = dto.stock ?? 0;
+    if (!service && (!Number.isInteger(given) || given < 0)) throw AppError.badRequest("Stock must be a whole number, 0 or more.");
     const name = dto.name.trim();
-    if (!name) throw AppError.badRequest("Enter a product name.");
+    if (!name) throw AppError.badRequest(service ? "Enter a service name." : "Enter a product name.");
 
     // a product's category is one of the business's own, matched case-insensitively
     let categoryId: string | null = null;
@@ -147,10 +151,11 @@ export class ProductsService {
       categoryId = cat.id;
     }
 
-    const stock = variants.length ? variants.reduce((s, v) => s + v.stock, 0) : dto.stock;
-    const status = (stock === 0 && dto.status === "active" ? "out_of_stock" : dto.status).toUpperCase();
+    // a service is never "sold out": no stock, and a stale out-of-stock status becomes active
+    const stock = service ? 0 : variants.length ? variants.reduce((s, v) => s + v.stock, 0) : given;
+    const status = service ? (dto.status === "draft" ? "DRAFT" : "ACTIVE") : (stock === 0 && dto.status === "active" ? "out_of_stock" : dto.status).toUpperCase();
     return {
-      scalars: { name, sku: dto.sku?.trim() ?? "", description: dto.description?.trim() ?? "", price: dto.price, stock, status, categoryId },
+      scalars: { name, kind: (service ? "SERVICE" : "PRODUCT") as never, ...(service ? (dto.durationMins !== undefined ? { durationMins: dto.durationMins } : {}) : { durationMins: null }), sku: dto.sku?.trim() ?? "", description: dto.description?.trim() ?? "", price: dto.price, stock, status, categoryId },
       specs: dto.specs === undefined ? undefined : specs!.length ? specs : null,
       images,
       imagesGiven: dto.images !== undefined,

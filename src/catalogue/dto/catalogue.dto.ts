@@ -16,7 +16,7 @@ export class VariantDto {
   @IsOptional() @IsString() id?: string;
   @IsString({ message: "Every variant needs a name." }) name: string;
   @IsOptional() @IsNumber() price?: number;
-  @IsNumber() stock: number;
+  @IsOptional() @IsNumber() stock?: number;
 }
 
 export class SpecDto {
@@ -31,7 +31,12 @@ export class ProductDto {
   @IsOptional() @IsString() category?: string;
   @IsOptional() @IsString() @MaxLength(5000) description?: string;
   @IsNumber({}, { message: "Enter a valid price." }) @Min(0, { message: "Enter a valid price." }) price: number;
-  @IsNumber() stock: number;
+  /** Ignored for services. */
+  @IsOptional() @IsNumber() stock?: number;
+  /** "product" (default) is stocked; a "service" has no stock and is never sold out. */
+  @IsOptional() @IsIn(["product", "service"]) kind?: "product" | "service";
+  /** Minutes a service takes. Omit to keep, null to clear. */
+  @IsOptional() @IsInt() @Min(1) @Max(1440) durationMins?: number | null;
   @IsIn(["active", "draft", "out_of_stock"]) status: "active" | "draft" | "out_of_stock";
   /** Photo URLs from /business/uploads, cover first. Omit to keep, [] to remove all. */
   @IsOptional() @IsArray() @IsString({ each: true }) images?: string[];
@@ -43,6 +48,7 @@ export class ProductDto {
 
 export class ListProductsQuery {
   @IsOptional() @IsString() q?: string;
+  @IsOptional() @IsIn(["product", "service"]) kind?: "product" | "service";
   @IsOptional() @IsIn(["active", "draft", "out_of_stock"]) status?: "active" | "draft" | "out_of_stock";
   @IsOptional() @IsString() categoryId?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number;

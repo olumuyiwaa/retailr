@@ -56,6 +56,11 @@ enum InvoiceStatus {
   REFUNDED
 }
 
+enum ProductKind {
+  PRODUCT
+  SERVICE
+}
+
 enum ProductStatus {
   ACTIVE
   DRAFT
@@ -385,6 +390,10 @@ model Product {
   categoryId  String?
   category    Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   name        String
+  /// A SERVICE has no stock: it is never sold out and never alerts on low stock.
+  kind        ProductKind   @default(PRODUCT)
+  /// How long a service takes, in minutes (optional, shown to shoppers).
+  durationMins Int?
   sku         String        @default("")
   description String        @default("")
   price       Decimal       @db.Decimal(12, 2)
