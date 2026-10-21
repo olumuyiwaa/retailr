@@ -37,11 +37,11 @@ describe("Services and search", () => {
     const res = await api().post(`/api/v1/store/${slug}/orders`)
       .send({ customer: { name: "Ada Obi", email: "ada@example.com", phone: "123" }, shippingAddress: "x", paymentMethod: "cod", items: [{ productId: s.id, qty: 3 }] });
     expect(res.status).toBe(201);
-    await as(x).post("/business/sales", { items: [{ productId: s.id, qty: 2 }], paymentMethod: "cash", customer: { name: "Walk in" } }).expect(201);
+    await as(x).post("/business/sales", { items: [{ productId: s.id, qty: 2 }], channel: "in_store", paymentMethod: "cash", paid: true, handedOver: true, newCustomer: { name: "Walk in" } }).expect(201);
     const after = (await as(x).get(`/business/products/${s.id}`).expect(200)).body;
     expect(after).toMatchObject({ stock: 0, sold: 5, status: "active" });
     // cancelling gives back the sold count, not stock
-    const order = (await as(x).get("/business/orders").expect(200)).body.find((o: any) => o.channel === "storefront" || o.channel === "store") ?? (await as(x).get("/business/orders").expect(200)).body[0];
+    const order = (await as(x).get("/business/orders").expect(200)).body.find((o: any) => o.channel === "online");
     await as(x).patch(`/business/orders/${order.id}/status`, { status: "cancelled" }).expect(200);
     const cancelled = (await as(x).get(`/business/products/${s.id}`).expect(200)).body;
     expect(cancelled.stock).toBe(0);
@@ -50,10 +50,10 @@ describe("Services and search", () => {
 
   it("searches orders, customers and products in one call, only within the business", async () => {
     const x = await newTenant(api), other = await newTenant(api);
-    await as(x).post("/business/products", { name: "Zebra Lamp", price: 100, stock: 3, status: "active" }).expect(201);
+    const lamp = (await as(x).post("/business/products", { name: "Zebra Lamp", price: 100, stock: 3, status: "active" }).expect(201)).body;
     await service(x, { name: "Zebra Grooming" }).expect(201);
     await as(other).post("/business/products", { name: "Zebra Secret", price: 100, stock: 3, status: "active" }).expect(201);
-    await as(x).post("/business/sales", { items: [{ productId: (await as(x).get("/business/products").expect(200)).body[0].id, qty: 1 }], paymentMethod: "cash", customer: { name: "Zebra Fan" } }).expect(201);
+    await as(x).post("/business/sales", { items: [{ productId: lamp.id, qty: 1 }], channel: "in_store", paymentMethod: "cash", paid: true, handedOver: true, newCustomer: { name: "Zebra Fan" } }).expect(201);
 
     const r = (await as(x).get("/business/search?q=zebra").expect(200)).body;
     expect(r.products.map((p: any) => p.name).sort()).toEqual(["Zebra Grooming", "Zebra Lamp"]);
