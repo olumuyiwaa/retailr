@@ -30,3 +30,16 @@ export class AcceptInviteDto {
   @IsString() @MaxLength(200) token: string;
   @IsString() @MinLength(8, { message: "Password must be at least 8 characters." }) @MaxLength(128) password: string;
 }
+
+export class ForgotPasswordDto {
+  @Transform(trim) @IsString() @MaxLength(254) email: string;
+}
+
+export class ResetPasswordDto {
+  @IsString() @MaxLength(200) token: string;
+  @IsString() @MinLength(8, { message: "Password must be at least 8 characters." }) @MaxLength(128) password: string;
+}
+
+export class VerifyEmailDto {
+  @IsString() @MaxLength(200) token: string;
+}

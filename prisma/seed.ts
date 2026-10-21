@@ -45,7 +45,7 @@ async function main() {
   const existing = await prisma.user.findUnique({ where: { email } });
   if (!existing) {
     if (!password || password.length < 8) throw new Error("Set SEED_SUPER_ADMIN_PASSWORD (8+ characters) to create the super admin.");
-    await prisma.user.create({ data: { email, name: "Retailr Admin", passwordHash: await argon2.hash(password), role: "SUPER_ADMIN" } });
+    await prisma.user.create({ data: { email, name: "Retailr Admin", passwordHash: await argon2.hash(password), role: "SUPER_ADMIN", emailVerifiedAt: new Date() } });
     console.log(`Created super admin ${email}`);
   }
 

@@ -8,11 +8,12 @@ type Decimalish = { toNumber(): number } | number | string;
 export const num = (d: Decimalish): number => (typeof d === "number" ? d : typeof d === "string" ? Number(d) : d.toNumber());
 export const iso = (d: Date | null | undefined) => (d ? d.toISOString() : undefined);
 
-export const toAuthUser = (u: Pick<User, "id" | "name" | "email" | "role" | "businessId">) => ({
+export const toAuthUser = (u: Pick<User, "id" | "name" | "email" | "role" | "businessId" | "emailVerifiedAt">) => ({
   id: u.id,
   name: u.name,
   email: u.email,
   role: lower(u.role),
+  emailVerified: !!u.emailVerifiedAt,
   ...(u.businessId ? { businessId: u.businessId } : {}),
 });
 

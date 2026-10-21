@@ -6,12 +6,18 @@ import * as argon2 from "argon2";
 import { createHash, randomBytes } from "crypto";
 import { AppError } from "../common/errors";
 import { toAuthUser } from "../common/serializers";
+import { MailService } from "../mail/mail.service";
+import { passwordResetMail, verifyEmailMail } from "../mail/templates";
 import { NotificationsService } from "../notifications/notifications.service";
 import { PlanCouponsService } from "../plans/plan-coupons.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { RegisterDto } from "./dto/auth.dto";
 
 const DAY = 86_400_000;
+const RESET_MINUTES = 60;
+const VERIFY_HOURS = 48;
+/** One reset or verification mail per person per minute, so the form can't be used to flood an inbox. */
+const COOLDOWN_MS = 60_000;
 const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 const currencyForCountry = (country: string): Currency => {
   const c = country.trim().toLowerCase();
@@ -32,6 +38,7 @@ export class AuthService {
     private readonly config: ConfigService,
     private readonly coupons: PlanCouponsService,
     private readonly notifications: NotificationsService,
+    private readonly mail: MailService,
   ) {}
 
   async register(dto: RegisterDto): Promise<Session> {
@@ -80,6 +87,7 @@ export class AuthService {
       return created;
     });
     void this.notifications.notifyPlatform({ type: "NEW_BUSINESS", title: `New business: ${dto.businessName}`, body: `${dto.ownerName} · ${plan.name} plan · ${dto.city}, ${dto.country}`, link: "/admin/super/businesses" });
+    void this.sendVerification(user);
     return this.issue(user);
   }
 
@@ -133,11 +141,74 @@ export class AuthService {
       if (claimed.count === 0) throw AppError.badRequest("This invite link isn't valid or has expired. Ask for a new one.", "INVITE_INVALID");
       const email = m.email.toLowerCase();
       if (await tx.user.findUnique({ where: { email } })) throw AppError.conflict("An account with this email already exists.", "EMAIL_TAKEN");
-      const u = await tx.user.create({ data: { email, name: m.name, passwordHash, role: "BUSINESS_ADMIN", businessId: m.businessId } });
+      const u = await tx.user.create({ data: { email, name: m.name, passwordHash, role: "BUSINESS_ADMIN", businessId: m.businessId, emailVerifiedAt: new Date() } });
       await tx.teamMember.update({ where: { id: m.id }, data: { userId: u.id } });
       return u;
     });
     return this.issue(user);
+  }
+
+  /** Makes a single-use token, replacing any unused ones of the same kind. Returns null during the cooldown. */
+  private async mintToken(userId: string, kind: "PASSWORD_RESET" | "EMAIL_VERIFY", ttlMs: number): Promise<string | null> {
+    const recent = await this.prisma.authToken.findFirst({ where: { userId, kind, createdAt: { gt: new Date(Date.now() - COOLDOWN_MS) } }, select: { id: true } });
+    if (recent) return null;
+    const token = randomBytes(32).toString("base64url");
+    await this.prisma.$transaction([
+      this.prisma.authToken.deleteMany({ where: { userId, kind, usedAt: null } }),
+      this.prisma.authToken.create({ data: { userId, kind, tokenHash: sha256(token), expiresAt: new Date(Date.now() + ttlMs) } }),
+    ]);
+    return token;
+  }
+
+  /** Claims a token exactly once, so two clicks (or two requests) can't both use it. */
+  private async claimToken(token: string, kind: "PASSWORD_RESET" | "EMAIL_VERIFY") {
+    const hash = sha256(token);
+    const row = await this.prisma.authToken.findUnique({ where: { tokenHash: hash } });
+    const bad = kind === "PASSWORD_RESET"
+      ? AppError.badRequest("This reset link isn't valid or has expired. Ask for a new one.", "RESET_INVALID")
+      : AppError.badRequest("This confirmation link isn't valid or has expired. Ask for a new one.", "VERIFY_INVALID");
+    if (!row || row.kind !== kind || row.usedAt || row.expiresAt.getTime() < Date.now()) throw bad;
+    const claimed = await this.prisma.authToken.updateMany({ where: { id: row.id, usedAt: null }, data: { usedAt: new Date() } });
+    if (claimed.count === 0) throw bad;
+    return row;
+  }
+
+  /** Always answers the same way, so the form can't be used to find out which emails have accounts. */
+  async forgotPassword(emailRaw: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { email: emailRaw.trim().toLowerCase() } });
+    if (!user) return;
+    const token = await this.mintToken(user.id, "PASSWORD_RESET", RESET_MINUTES * 60_000);
+    if (!token) return;
+    await this.mail.trySend(passwordResetMail(user.email, { name: user.name, link: `${this.mail.appUrl}/admin/reset-password?token=${token}`, minutes: RESET_MINUTES }));
+  }
+
+  /** Sets the new password, signs every device out, and counts as proof the person owns the inbox. */
+  async resetPassword(token: string, password: string): Promise<void> {
+    const row = await this.claimToken(token, "PASSWORD_RESET");
+    const passwordHash = await argon2.hash(password);
+    await this.prisma.$transaction([
+      this.prisma.user.update({ where: { id: row.userId }, data: { passwordHash, emailVerifiedAt: new Date() } }),
+      this.prisma.refreshToken.updateMany({ where: { userId: row.userId, revokedAt: null }, data: { revokedAt: new Date() } }),
+      this.prisma.authToken.deleteMany({ where: { userId: row.userId, kind: "PASSWORD_RESET" } }),
+    ]);
+  }
+
+  private async sendVerification(user: User): Promise<boolean> {
+    const token = await this.mintToken(user.id, "EMAIL_VERIFY", VERIFY_HOURS * 3_600_000);
+    if (!token) return false;
+    return this.mail.trySend(verifyEmailMail(user.email, { name: user.name, link: `${this.mail.appUrl}/admin/verify-email?token=${token}`, hours: VERIFY_HOURS }));
+  }
+
+  async verifyEmail(token: string): Promise<void> {
+    const row = await this.claimToken(token, "EMAIL_VERIFY");
+    await this.prisma.user.update({ where: { id: row.userId }, data: { emailVerifiedAt: new Date() } });
+  }
+
+  async resendVerification(userId: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw AppError.unauthorized();
+    if (user.emailVerifiedAt) return;
+    await this.sendVerification(user);
   }
 
   async logout(token: string) {

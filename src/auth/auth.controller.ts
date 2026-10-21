@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import { AuthContext, CurrentUser, Public } from "../common/decorators";
 import { AuthService } from "./auth.service";
-import { AcceptInviteDto, LoginDto, RefreshDto, RegisterDto } from "./dto/auth.dto";
+import { AcceptInviteDto, ForgotPasswordDto, LoginDto, RefreshDto, RegisterDto, ResetPasswordDto, VerifyEmailDto } from "./dto/auth.dto";
 
 /** Credential endpoints: 10 per minute per client by default (AUTH_RATE_LIMIT overrides it, mainly for tests). */
 const strict = { default: { limit: () => Number(process.env.AUTH_RATE_LIMIT ?? 10), ttl: 60_000 } };
@@ -27,6 +27,18 @@ export class AuthController {
 
   @Public() @Throttle(strict) @HttpCode(200) @Post("accept-invite")
   accept(@Body() dto: AcceptInviteDto) { return this.auth.acceptInvite(dto.token, dto.password); }
+
+  @Public() @Throttle(strict) @HttpCode(204) @Post("forgot-password")
+  async forgot(@Body() dto: ForgotPasswordDto) { await this.auth.forgotPassword(dto.email); }
+
+  @Public() @Throttle(strict) @HttpCode(204) @Post("reset-password")
+  async reset(@Body() dto: ResetPasswordDto) { await this.auth.resetPassword(dto.token, dto.password); }
+
+  @Public() @Throttle(strict) @HttpCode(204) @Post("verify-email")
+  async verify(@Body() dto: VerifyEmailDto) { await this.auth.verifyEmail(dto.token); }
+
+  @ApiBearerAuth() @Throttle(strict) @HttpCode(204) @Post("resend-verification")
+  async resend(@CurrentUser() user: AuthContext) { await this.auth.resendVerification(user.userId); }
 
   @Public() @HttpCode(204) @Post("logout")
   async logout(@Body() dto: RefreshDto) { await this.auth.logout(dto.refreshToken); }

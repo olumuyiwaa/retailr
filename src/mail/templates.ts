@@ -57,3 +57,17 @@ export const subscriptionPaidMail = (to: string, o: { name: string; business: st
   text: `Hi ${o.name},\n\nThanks, we received ${o.amount} for the ${o.plan} plan. Your next renewal is ${o.nextDate}.`,
   html: shell("Payment received", `<p>Hi ${esc(o.name)},</p><p>Thanks, we received <b>${esc(o.amount)}</b> for the <b>${esc(o.plan)}</b> plan. Your next renewal is ${esc(o.nextDate)}.</p>`),
 });
+
+export const passwordResetMail = (to: string, o: { name: string; link: string; minutes: number }): Mail => ({
+  to,
+  subject: "Reset your Retailr password",
+  text: `Hi ${o.name},\n\nSomeone asked to reset the password for this account. Choose a new one here:\n${o.link}\n\nThis link works once and expires in ${o.minutes} minutes. If it wasn't you, ignore this email: your password stays the same.`,
+  html: shell("Reset your password", `<p>Hi ${esc(o.name)},</p><p>Someone asked to reset the password for this account.</p>${button(o.link, "Choose a new password")}<p style="font-size:13px;color:#667085">This link works once and expires in ${o.minutes} minutes. If it wasn't you, ignore this email: your password stays the same.</p>`),
+});
+
+export const verifyEmailMail = (to: string, o: { name: string; link: string; hours: number }): Mail => ({
+  to,
+  subject: "Confirm your email address",
+  text: `Hi ${o.name},\n\nConfirm your email address so we can reach you about orders, billing and sign-in:\n${o.link}\n\nThis link expires in ${o.hours} hours.`,
+  html: shell("Confirm your email", `<p>Hi ${esc(o.name)},</p><p>Confirm your email address so we can reach you about orders, billing and sign-in.</p>${button(o.link, "Confirm my email")}<p style="font-size:13px;color:#667085">This link expires in ${o.hours} hours.</p>`),
+});

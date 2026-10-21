@@ -149,7 +149,10 @@ model User {
   /// Set for BUSINESS_ADMIN. One login belongs to one business for now (see README, "Later").
   businessId   String?
   business     Business? @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  /// Set once the person has proved they own the address (verification link, reset link or accepted invite).
+  emailVerifiedAt DateTime?
   teamMember   TeamMember?
+  authTokens   AuthToken[]
   refreshTokens RefreshToken[]
   notifications Notification[]
   pushSubscriptions PushSubscription[]
@@ -157,6 +160,25 @@ model User {
   updatedAt    DateTime @updatedAt
 
   @@index([businessId])
+}
+
+enum AuthTokenKind {
+  PASSWORD_RESET
+  EMAIL_VERIFY
+}
+
+/// Single-use links sent by email. Only the hash is stored, so a database leak can't be used to reset anyone's password.
+model AuthToken {
+  id        String        @id @default(cuid())
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind      AuthTokenKind
+  tokenHash String        @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime      @default(now())
+
+  @@index([userId, kind])
 }
 
 model RefreshToken {

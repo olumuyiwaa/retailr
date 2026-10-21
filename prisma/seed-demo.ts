@@ -87,7 +87,7 @@ async function main() {
   // team: owner, manager, staff (all with the same demo password)
   const team: [string, string, "OWNER" | "MANAGER" | "STAFF"][] = [["Amara Dike", "demo@scentora.example", "OWNER"], ["Kunle Peters", "manager@scentora.example", "MANAGER"], ["Zainab Lawal", "staff@scentora.example", "STAFF"]];
   for (const [name, email, role] of team) {
-    const u = await prisma.user.create({ data: { email, name, passwordHash: hash, role: "BUSINESS_ADMIN", businessId: biz.id } });
+    const u = await prisma.user.create({ data: { email, name, passwordHash: hash, role: "BUSINESS_ADMIN", businessId: biz.id, emailVerifiedAt: new Date() } });
     await prisma.teamMember.create({ data: { businessId: biz.id, userId: u.id, name, email, role, status: "ACTIVE" } });
   }
 
