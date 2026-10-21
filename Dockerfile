@@ -8,7 +8,7 @@ COPY prisma.config.ts ./
 RUN npm ci
 COPY tsconfig*.json nest-cli.json ./
 COPY src ./src
-RUN npm run build && npm prune --omit=dev && npx prisma migrate deploy
+RUN npm run build && npm prune --omit=dev
 
 FROM node:22-slim
 WORKDIR /app
