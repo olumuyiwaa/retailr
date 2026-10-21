@@ -2,7 +2,7 @@
 
 Backend for [Retailr](https://github.com/olumuyiwaa/retailr_frontend), a multi-tenant SaaS where small businesses subscribe, get a public storefront at `/s/<slug>` and run it from a business admin, with a super admin for the platform. This repo starts from a spec derived from the frontend's domain types (`src/types/saas.ts`) and mock services (`src/services/*.ts`), so the API matches what every screen already expects.
 
-**Status:** foundation and auth are built and tested (NestJS, Prisma 6, PostgreSQL). Next: storefront and orders (see "Suggested build order").
+**Status:** the API is built and tested (NestJS, Prisma 6, PostgreSQL) and the web app uses it. Still to build: online card payments at storefront checkout, password reset and email verification, and delivery fees (see "Later").
 
 | Done | Where |
 | --- | --- |
@@ -14,15 +14,15 @@ Backend for [Retailr](https://github.com/olumuyiwaa/retailr_frontend), a multi-t
 | Image uploads: signed PUT URLs for S3-compatible storage (or a local driver for development), type and size limits, files tied to their business | `src/storage` |
 | Full PostgreSQL schema, first migration, seed (plans, super admin, discount codes) | `prisma/` |
 | Storefront and orders: public store, coupon check, `placeOrder` (per-business advisory lock, guarded stock and coupon updates, atomic order numbers, plan limits), order status changes with restock, record a sale, customers and detail | `src/store`, `src/orders` |
-| Business extras: coupons, customer groups (manual and rule-based, computed at read time), messages (recorded; delivery TODO), team invites with plan limits, profile and theme | `src/business` |
+| Business extras: coupons, customer groups (manual and rule-based, computed at read time), messages (email and SMS, sent in the background), team invites with plan limits, profile and theme, and the payment options a store's checkout offers (`paymentMethods`, `bankDetails`) | `src/business` |
 | Dashboard overview and sales report (`GET /business/overview`, `GET /business/reports/sales?days=7\|30\|90\|365`): paid-order revenue, trends vs the previous period, splits, leaders | `src/business/reports.*` |
 | Billing: usage (including real upload size), invoices, change plan with platform discount codes (one redemption per business, last use serialised, carried-code rules) | `src/billing` |
 | Platform admin: overview (MRR, signups, churn, GMV), businesses with approve/suspend/cancel, subscriptions, invoices, plans, discount codes | `src/platform` |
-| Visit tracking (`POST /track`, public, de-duplicated, bounded) and analytics for businesses and the platform | `src/analytics` |
+| Visit tracking (`POST /track`, public, de-duplicated, bounded) and analytics for businesses and the platform; funnel steps count distinct visits, and "placed an order" counts visits that ordered | `src/analytics` |
 | Subscription payments (Paystack, pluggable provider): checkout, signed webhook, renewals, dunning and trial jobs | `src/payments`, `src/jobs`, `src/billing` |
 | Audit log of platform and sensitive business changes | `src/audit` |
 | SMS (Termii or log driver) and email (SMTP or log driver): team invites with accept-invite, receipts, customer messages with `{{first_name}}` and `{{store}}` filled in | `src/mail`, `src/auth`, `src/business` |
-| 196 end-to-end tests against a real database (including tenant isolation) | `test/` |
+| About 200 end-to-end tests against a real database (including tenant isolation) | `test/` |
 
 Deploying: see `docs/DEPLOY.md` and the `Dockerfile`. Switching the web app over: `docs/FRONTEND.md`.
 
@@ -85,23 +85,22 @@ NestJS + Prisma + PostgreSQL, TypeScript. Suggested extras: `class-validator` fo
 8. **Analytics:** `/track` ingest into `AnalyticsDay`, both analytics endpoints.
 9. **Hardening:** rate limits, audit log, e2e tests for tenant isolation and the order transaction, OpenAPI docs.
 
-## Switching the frontend over
+## The web app
 
-In the frontend repo, everything the UI calls lives in `src/services/*.ts` and returns the types in `src/types/saas.ts`. To connect the real API: add one HTTP client (with the access token and refresh handling), reimplement each service function as a call to the matching endpoint in `docs/API.md` keeping the same name and return type, then delete `src/services/db.ts` and `src/mock/*`. No component should need to change. Two places need a small edit: `src/lib/tracking.ts` + `src/services/analytics.ts` (`track` should POST to `/track`), and image upload in the product, category and settings pages (swap `fileToDataUrl` for the upload flow).
+The Next.js app ([retailr_frontend](https://github.com/olumuyiwaa/retailr_frontend)) talks to this API only (no mock data any more). Set its `NEXT_PUBLIC_API_URL` to this API's `/api/v1` address and its origin in `CORS_ORIGINS` here. `docs/FRONTEND.md` has the integration notes for checkout payments, invites and analytics tracking.
 
-## Things the mock does that the real backend should do differently
+## Behaviour worth knowing
 
-- **Restock on cancel or refund.** `updateOrderStatus` doesn't return stock when an order is cancelled; the real one should (and reverse `sold`).
-- **Customer totals.** The mock only adds to `orders` and `totalSpent` when an order is created as paid. Recompute from paid, non-refunded orders whenever payment status or order status changes.
-- **Public order links.** The order confirmation and invoice pages use the order id in the URL. Use `Order.publicToken` instead so links can't be guessed.
-- **Passwords.** The mock accepts one shared demo password. Real accounts need hashed passwords, email verification and a reset flow.
-- **Storage usage.** `storageGb` in billing is a made-up number. Sum real upload sizes per business.
-- **Analytics.** History in the mock is generated. The real endpoints read `AnalyticsDay`; a business with no data yet shows zeros.
-- **Order limits.** "Orders this month" should use the business's billing period or calendar month consistently, and count online and recorded sales alike.
-- **Messages.** Email and SMS are sent in the background in this process, five at a time. At high volume this should become a queue with retries.
+- **Cancelled or refunded orders** put stock back and take `sold` down; customer totals are recomputed from paid orders whenever an order's payment or status changes.
+- **Public order links** use `Order.publicToken`, never the order id, so they can't be guessed.
+- **Passwords** are hashed with argon2. There is no email verification or password reset yet.
+- **Storage usage** in billing is the real sum of upload sizes. The plan's storage limit is shown but not enforced on upload yet.
+- **Analytics** read `AnalyticsDay`; a business with no data yet shows zeros.
+- **Order limits** count online orders and recorded sales alike, per calendar month.
+- **Messages.** Email and SMS are sent in the background in this process, five at a time. At high volume this should become a queue with retries. SMS has no per-plan credit limit yet, so every message is paid for by the platform's Termii account.
 
 ## Later
 
 - Let one login belong to several businesses (replace `User.businessId` with a membership table).
 - Customer accounts for shoppers (optional login, saved addresses, order history), with guest checkout kept as the default.
-- Delivery zones and fees, inventory history, expenses and profit, payment gateways for storefront checkout.
+- Password reset and email verification, delivery zones and fees, inventory history, expenses and profit, and real card payments at storefront checkout (today the card option only works as a demo, see `DEMO_CARD_PAYMENTS`).

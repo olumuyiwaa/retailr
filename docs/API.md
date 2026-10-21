@@ -13,7 +13,7 @@ Legend: 🌐 public (rate-limited) · 🏪 business admin · 👑 super admin.
 | `POST /auth/refresh` | 🌐 | Rotates the refresh token; revoke the old one. |
 | `POST /auth/logout` | any | Revokes the refresh token. |
 | `GET /auth/me` | any | `AuthUser`: `{ id, name, email, role, businessId? }`. |
-| `POST /auth/forgot-password`, `POST /auth/reset-password` | 🌐 | New; the mock has no reset. |
+| `POST /auth/forgot-password`, `POST /auth/reset-password` | 🌐 | **Not built yet.** Planned; the mock had no reset either. |
 | `POST /auth/accept-invite` | 🌐 | New; a team member sets a password from the emailed invite token. |
 
 **Register rules**
@@ -38,15 +38,15 @@ Invites: `GET /auth/invite/:token` previews `{ name, email, role, businessName }
 | --- | --- |
 | `GET /plans` 🌐 | Active plans (`Plan`), for the pricing page, sign-up and billing. |
 | `POST /plan-coupons/validate` 🌐 | `{ code, planId }` → `PlanCoupon` or an error. Business-restricted codes only validate for that business (send the token when logged in). |
-| `GET /store/:slug` 🌐 | `PublicStore` (`id, name, slug, category, description, phone, city, country, brandColor, theme, logo, currency`). 404 "This store isn't available right now." unless the business is `ACTIVE` or `TRIAL`. |
+| `GET /store/:slug` 🌐 | `PublicStore` (`id, name, slug, category, description, phone, city, country, brandColor, theme, logo, currency, paymentMethods, bankDetails?`). 404 "This store isn't available right now." unless the business is `ACTIVE` or `TRIAL`. |
 | `GET /store/:slug/products` 🌐 | Non-draft products (sold-out ones stay visible but can't be bought), with images, variants and specs. |
 | `GET /store/:slug/categories` 🌐 | `[{ name, image? }]`: the business's categories that currently have at least one non-draft product, sorted by name. |
 | `POST /store/:slug/coupons/validate` 🌐 | `{ code, subtotal }` → `{ code, discount }`. Doesn't use the code up. |
 | `POST /store/:slug/orders` 🌐 | Place an order (below). Returns the `Order` including `publicToken`. |
 | `GET /store/orders/:publicToken` 🌐 | The order plus the store, for the confirmation and invoice pages. Looked up by the unguessable token only (the order id never works). |
-| `POST /track` 🌐 (built) | Batched events: `{ scope: businessId \| "platform", visitorId, sessionId, events: [{ type: "page"\|"product"\|"add_to_cart"\|"checkout", path, productId?, source, device, country }] }`. Fire-and-forget (202); upsert into `AnalyticsDay` by `(scope, date)`. Count a visitor once per day and a session once per sessionId. |
+| `POST /track` 🌐 (built) | Batched events: `{ scope: businessId \| "platform", visitorId, sessionId, events: [{ type: "page"\|"product"\|"add_to_cart"\|"checkout"\|"order", path, productId?, source, device, country }] }`. Fire-and-forget (202); upsert into `AnalyticsDay` by `(scope, date)`. Count a visitor once per day and a session once per sessionId. The funnel steps count each session once (`productSessions`, `cartSessions`, `checkoutSessions`, `orderSessions`); the storefront sends `order` once an order goes through. |
 
-**Place order**: body `{ customer: { name, email, phone }, shippingAddress, notes?, paymentMethod, couponCode?, items: [{ productId, variantId?, qty }] }`. In one transaction:
+**Place order**: body `{ customer: { name, email, phone }, shippingAddress, notes?, paymentMethod, couponCode?, items: [{ productId, variantId?, qty }] }`. `paymentMethod` must be one of the store's `paymentMethods`, otherwise 400 `PAYMENT_METHOD_UNAVAILABLE`. In one transaction:
 1. Business must be `ACTIVE` or `TRIAL`: "This store isn't available right now." Cart must be non-empty: "Your cart is empty."
 2. Plan limit `maxOrdersPerMonth` (unless -1): "This store isn't taking new orders right now. Please try again later."
 3. For each line: product exists, belongs to the business and isn't a draft ("One of the items in your cart is no longer available."); qty is a whole number ≥ 1; with variants, `variantId` is required ("Please choose an option for {product}.") and its stock is checked ("{name} ({variant}) is sold out." / "Only {n} of {name} ({variant}) left in stock."); without variants, out-of-stock or insufficient stock gives "{name} is sold out." / "Only {n} of {name} left in stock."
@@ -125,7 +125,7 @@ Implemented so far: coupons, team, profile, groups and messages. `PUT` on a coup
 | `DELETE /business/team/:id` | The owner can't be removed: "The owner cannot be removed." |
 | `GET /business/billing` | `{ plan, subscription, usage, invoices, plans }`. Usage: products, staff, orders this month, storage (real sum of uploads). |
 | `POST /business/billing/change-plan` | `{ planId, cycle, couponCode? }` (below). Returns the refreshed billing view. When payments are on, a paid plan needs checkout instead (below). A business that already redeemed a code isn't blocked by its own use when it changes cycle or re-enters the code. |
-| `GET /business/profile`, `PATCH /business/profile` | Editable: `name, description, phone, country, city, brandColor, category, currency, theme, logo`. `logo` is a URL, `null` removes it. Validate `theme` against the known theme ids. |
+| `GET /business/profile`, `PATCH /business/profile` | Editable: `name, description, phone, country, city, brandColor, category, currency, theme, logo, paymentMethods, bankDetails`. `logo` is a URL, `null` removes it. `paymentMethods` is a non-empty list of `cod`, `bank` and `card` (the options the storefront checkout offers; new stores start with all three); `bankDetails` (up to 500 characters) is shown to shoppers who choose bank transfer. Validate `theme` against the known theme ids. |
 
 ## Platform discounts (subscription coupons)
 

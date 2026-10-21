@@ -46,7 +46,7 @@ They run inside the API process, hourly, and are safe on several instances at on
 
 ## Not done yet
 
-Flutterwave and Stripe adapters.
+A Stripe adapter. Online payments at storefront checkout (shoppers paying a store) are also not built: the Paystack and Flutterwave adapters only collect subscriptions.
 
 ### Payment webhooks
 

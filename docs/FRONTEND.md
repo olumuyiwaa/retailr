@@ -31,8 +31,8 @@ When `GET /business/billing` returns `payments.enabled: true`, `change-plan` ref
 - Body: `{ scope, visitorId, sessionId, events: [{ type, path, productId?, source, device, country }] }`, 1–50 events.
   - `scope`: the business id on a storefront, `"platform"` on the marketing site.
   - `visitorId`: random id kept in `localStorage`, stable per browser. `sessionId`: random id kept in `sessionStorage` (new per tab visit).
-  - `type`: `page`, `product`, `add_to_cart`, `checkout`. `source`: `direct|whatsapp|instagram|facebook|search|other` (from `utm_source`/referrer). `device`: `mobile|desktop|tablet`.
-  - `productId` only for `product` and `add_to_cart` events.
+  - `type`: `page`, `product`, `add_to_cart`, `checkout`, `order` (send `order` once, when the storefront order goes through; it is what makes an order count towards the funnel and the conversion rate). `source`: `direct|whatsapp|instagram|facebook|search|other` (from `utm_source`/referrer). `device`: `mobile|desktop|tablet`.
+  - `productId` only for `product` events.
 - The response is always 202; ignore it. Wrap everything in try/catch: tracking must never break a page.
 - Send `source`, `device` and `country` on the first event of a session; later ones are ignored for that.
 
