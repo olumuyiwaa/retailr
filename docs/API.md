@@ -205,3 +205,18 @@ Rules: the amount and currency must match the invoice or the payment is rejected
 - **Nightly (02:00 UTC):** prune expired refresh tokens and old analytics dedupe rows; recompute customer totals from paid orders.
 
 Still open: a Stripe adapter behind the same `PaymentProvider` interface.
+
+## Notifications
+
+For every signed-in person: business team members get their business's, super admins get the platform's. Each person has their own copy and read state.
+
+| Endpoint | What it does |
+|---|---|
+| `GET /notifications?limit=20&unread=true` | `{ unreadCount, items: [{ id, type, title, body, link?, read, createdAt }] }`, newest first (`limit` 1-100, default 20). `type` is `new_order`, `low_stock`, `out_of_stock` or `new_business`. |
+| `POST /notifications/:id/read` (204) | Marks one read. 404 if it isn't yours. |
+| `POST /notifications/read-all` (204) | Marks all yours read. |
+| `GET /notifications/push/key` | `{ enabled, publicKey }`: the VAPID public key the browser subscribes with. `enabled: false` when the server has no VAPID keys. |
+| `POST /notifications/push/subscribe` (204) | `{ endpoint, keys: { p256dh, auth } }` from `PushSubscription.toJSON()`. `endpoint` must be https. Subscribing again with the same endpoint just updates it (and moves it to the current person). 400 `PUSH_DISABLED` without VAPID keys. |
+| `POST /notifications/push/unsubscribe` (204) | `{ endpoint }` |
+
+Who is told what: everyone on the team gets `new_order` when a shopper places a storefront order; the owner and managers get `low_stock` (a product falls to 5 or fewer) and `out_of_stock`, once each time a product crosses that line (also after a recorded sale); super admins get `new_business` on every sign-up. Each notification is also sent as a Web Push message to every browser that person subscribed, and a subscription the push service reports as gone (404/410) is deleted. Notifications are deleted after 60 days (nightly job). Creating one never fails or delays the action that caused it.

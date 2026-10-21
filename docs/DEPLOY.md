@@ -23,6 +23,7 @@ One container (the `Dockerfile`), one PostgreSQL database. Everything else is co
 | `MAIL_DRIVER=smtp`, `SMTP_URL`, `MAIL_FROM` | With `log`, invites and receipts are only printed. |
 | `SMS_DRIVER=termii`, `TERMII_API_KEY`, `SMS_SENDER` | With `log`, texts are only printed. Register the sender name with Termii first. |
 | `TRUST_PROXY` | See operating notes. |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Optional. Browser push for admins: `npx web-push generate-vapid-keys`, set both keys together. Without them in-app notifications still work and the web app hides the push switch. Changing the pair later invalidates every saved subscription. |
 | `DEMO_CARD_PAYMENTS=false` | Otherwise shopper card orders count as paid with no payment. |
 | `PAYMENTS_DRIVER=paystack` / `flutterwave` / `paystack,flutterwave`, plus `PAYSTACK_SECRET_KEY` and/or `FLUTTERWAVE_SECRET_KEY` + `FLUTTERWAVE_SECRET_HASH` | Subscription billing; the first listed is the default. Leave `none` to give plans away free. |
 

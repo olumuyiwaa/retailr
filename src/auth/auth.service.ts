@@ -6,6 +6,7 @@ import * as argon2 from "argon2";
 import { createHash, randomBytes } from "crypto";
 import { AppError } from "../common/errors";
 import { toAuthUser } from "../common/serializers";
+import { NotificationsService } from "../notifications/notifications.service";
 import { PlanCouponsService } from "../plans/plan-coupons.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { RegisterDto } from "./dto/auth.dto";
@@ -30,6 +31,7 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
     private readonly coupons: PlanCouponsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async register(dto: RegisterDto): Promise<Session> {
@@ -77,6 +79,7 @@ export class AuthService {
       });
       return created;
     });
+    void this.notifications.notifyPlatform({ type: "NEW_BUSINESS", title: `New business: ${dto.businessName}`, body: `${dto.ownerName} · ${plan.name} plan · ${dto.city}, ${dto.country}`, link: "/admin/super/businesses" });
     return this.issue(user);
   }
 

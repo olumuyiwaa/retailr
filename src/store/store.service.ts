@@ -4,13 +4,14 @@ import { AppError } from "../common/errors";
 import { toOrder, toProduct, toPublicStore } from "../common/serializers";
 import { OrderEngine } from "../orders/order-engine.service";
 import { PrismaService } from "../prisma/prisma.service";
+import { NotificationsService } from "../notifications/notifications.service";
 import { PlaceOrderDto } from "./dto/store.dto";
 
 const UNAVAILABLE = "This store isn't available right now.";
 
 @Injectable()
 export class StoreService {
-  constructor(private readonly prisma: PrismaService, private readonly engine: OrderEngine) {}
+  constructor(private readonly prisma: PrismaService, private readonly engine: OrderEngine, private readonly notifications: NotificationsService) {}
 
   /** Only businesses that are live (active or on trial) have a public store. */
   private async live(slug: string): Promise<Business> {
@@ -58,6 +59,9 @@ export class StoreService {
         couponCode: dto.couponCode, shippingAddress: dto.shippingAddress, notes: dto.notes,
       }),
     );
+    // tell the team (never holds up or fails the shopper's order)
+    void this.notifications.newOrder(biz.id, order, biz.currency);
+    void this.notifications.stockAlerts(biz.id, order.items);
     return toOrder(order, { publicToken: true });
   }
 
