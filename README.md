@@ -94,7 +94,7 @@ The Next.js app ([retailr_frontend](https://github.com/olumuyiwaa/retailr_fronte
 - **Cancelled or refunded orders** put stock back and take `sold` down; customer totals are recomputed from paid orders whenever an order's payment or status changes.
 - **Public order links** use `Order.publicToken`, never the order id, so they can't be guessed.
 - **Passwords** are hashed with argon2. There is no email verification or password reset yet.
-- **Storage usage** in billing is the real sum of upload sizes. The plan's storage limit is shown but not enforced on upload yet.
+- **Storage usage** in billing is the real sum of upload sizes. The plan's storage limit is enforced when an upload URL is requested (`PLAN_LIMIT_STORAGE`).
 - **Analytics** read `AnalyticsDay`; a business with no data yet shows zeros.
 - **Order limits** count online orders and recorded sales alike, per calendar month.
 - **Messages.** Email and SMS are sent in the background in this process, five at a time. At high volume this should become a queue with retries. SMS has no per-plan credit limit yet, so every message is paid for by the platform's Termii account.

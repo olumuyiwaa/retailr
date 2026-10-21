@@ -201,6 +201,16 @@ describe("Catalogue", () => {
       expect(await prisma.product.count({ where: { businessId: c.businessId } })).toBe(2);
     });
 
+    it("enforces the plan's storage limit when asking for an upload URL", async () => {
+      const plan = await prisma.plan.create({ data: { id: `nostore_${run}`, name: "Nostore", priceMonthly: 1, priceYearly: 10, maxProducts: 5, maxStaff: 1, maxOrdersPerMonth: 10, maxStorageGb: 0, features: [] } });
+      const c = await newTenant(api);
+      await prisma.business.update({ where: { id: c.businessId }, data: { planId: plan.id } });
+      const r = await post(c, "/business/uploads", { kind: "product", contentType: "image/png", size: 10 }).expect(403);
+      expect(r.body).toMatchObject({ code: "PLAN_LIMIT_STORAGE", message: "You've used all the image storage on your Nostore plan. Remove some images or upgrade to upload more." });
+      await prisma.plan.update({ where: { id: plan.id }, data: { maxStorageGb: -1 } }); // unlimited
+      await post(c, "/business/uploads", { kind: "product", contentType: "image/png", size: 10 }).expect(200);
+    });
+
     it("lists with filters and a total-count header", async () => {
       const d = await newTenant(api);
       await post(d, "/business/categories", { name: "Tops" });

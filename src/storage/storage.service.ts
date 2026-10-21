@@ -6,6 +6,9 @@ import { readdir, stat } from "fs/promises";
 import { resolve, sep } from "path";
 import { createHmac, randomBytes, timingSafeEqual } from "crypto";
 import { AppError } from "../common/errors";
+import { PrismaService } from "../prisma/prisma.service";
+
+const GB = 1024 ** 3;
 
 export const IMAGE_TYPES: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" };
 export type UploadKind = "product" | "category" | "logo";
@@ -34,7 +37,7 @@ export class StorageService {
   private s3?: S3Client;
   private readonly bucket?: string;
 
-  constructor(private readonly config: ConfigService) {
+  constructor(private readonly config: ConfigService, private readonly prisma: PrismaService) {
     this.driver = config.get("STORAGE_DRIVER") ?? "local";
     this.maxBytes = config.get<number>("UPLOAD_MAX_BYTES") ?? 2_097_152;
     this.apiUrl = (config.get<string>("API_PUBLIC_URL") ?? "http://localhost:4000").replace(/\/$/, "");
@@ -56,6 +59,8 @@ export class StorageService {
     if (!ext) throw AppError.badRequest("Upload a JPG, PNG, WebP or GIF image.", "UPLOAD_TYPE");
     if (!(size > 0) || size > this.maxBytes) throw AppError.badRequest(`Images can be up to ${Math.round(this.maxBytes / 1_048_576 * 10) / 10} MB.`, "UPLOAD_TOO_LARGE");
 
+    await this.assertRoom(businessId, size);
+
     // the key starts with the business id: that is what ties a stored file to its owner
     const key = `${businessId}/${kind}/${randomBytes(12).toString("hex")}.${ext}`;
     const publicUrl = `${this.publicBase}/${key}`;
@@ -73,6 +78,15 @@ export class StorageService {
     const sig = this.sign(key, contentType, exp);
     const uploadUrl = `${this.apiUrl}/api/v1/uploads/local/${key}?exp=${exp}&type=${encodeURIComponent(contentType)}&sig=${sig}`;
     return { ...base, uploadUrl, headers: { "Content-Type": contentType } };
+  }
+
+  /** Refuses the upload when it would take the business past its plan's storage (-1 means unlimited). */
+  private async assertRoom(businessId: string, size: number) {
+    const plan = (await this.prisma.business.findUniqueOrThrow({ where: { id: businessId }, select: { plan: { select: { name: true, maxStorageGb: true } } } })).plan;
+    if (plan.maxStorageGb === -1) return;
+    if ((await this.usageBytes(businessId)) + size > plan.maxStorageGb * GB) {
+      throw AppError.forbidden(`You've used all the image storage on your ${plan.name} plan. Remove some images or upgrade to upload more.`, "PLAN_LIMIT_STORAGE");
+    }
   }
 
   /** Checks the signature on a local-driver upload URL. */
