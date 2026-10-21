@@ -66,9 +66,11 @@ Invites: `GET /auth/invite/:token` previews `{ name, email, role, businessName }
 | `GET /business/analytics?days=7\|30\|90\|365` | `BusinessAnalytics` from `AnalyticsDay` (visitors, sessions, page views, conversion = online orders per 100 sessions, funnel visit → product view → add to cart → checkout → order, pages, sources, devices, countries, top products). Previous-period change is computed the same way. |
 
 ### Products and categories
+
+A catalogue item has a `kind`: `product` (stocked, the default) or `service` (a haircut, repair, class…). A service has no stock: `stock` is stored as 0, it is never `out_of_stock`, orders skip the stock checks and moves (only `sold` counts up and down), and it never raises low-stock alerts. `durationMins` (1–1440) is optional and only for services. The storefront treats a service as always available.
 | Endpoint | Notes |
 | --- | --- |
-| `GET /business/products` | Optional `q` (name or SKU), `status`, `categoryId`, `page` (default 1), `limit` (default 100, max 200). The body is the page of products; the total is in the `X-Total-Count` header. |
+| `GET /business/products` | Optional `q` (name or SKU), `kind` (`product` or `service`), `status`, `categoryId`, `page` (default 1), `limit` (default 100, max 200). The body is the page of products; the total is in the `X-Total-Count` header. |
 | `GET /business/products/:id` | One product. |
 | `POST /business/products`, `PUT /business/products/:id` | Body: `name, sku, category (name), description, price, stock, status, images[], variants[], specs[]`. |
 | `DELETE /business/products/:id` | Order history keeps its snapshots (`OrderItem.productId` becomes null). |
@@ -99,6 +101,12 @@ Invites: `GET /auth/invite/:token` previews `{ name, email, role, businessName }
 Orders keep a nullable `customerId` (walk-in sales have none; the API returns `"walk_in"` for them, and deleting a customer keeps their orders). Reopening a cancelled or refunded order takes the stock again and fails with the sold-out message if it's gone.
 
 **Record a sale**: body `{ customerId? | newCustomer?: { name, phone?, email? }, items: [{ productId, variantId?, qty, price? }], channel, paymentMethod, paid, handedOver, discount?, notes? }`. Rules: business must be `ACTIVE` or `TRIAL` ("Your store isn't active, so new sales can't be recorded."); at least one item ("Add at least one product to the sale."); monthly order limit ("You've reached this month's order limit on your plan. Upgrade to record more sales."); the same stock checks as checkout; a custom `price` overrides the item price; `discount` is a flat amount and can't exceed the subtotal ("The discount can't be more than the sale total."); an unknown `customerId` gives "That customer no longer exists."; a provided email must look valid ("Enter a valid customer email, or leave it blank."); a missing customer becomes a walk-in. Status is `DELIVERED` when `handedOver`, otherwise `PROCESSING`; payment is `PAID` or `UNPAID` from `paid`. Stock, `sold` and customer totals update as in checkout.
+
+### Search
+
+| Endpoint | Notes |
+|---|---|
+| `GET /business/search?q=` | The top 5 orders (number, customer name, email, phone), customers (name, email, phone, city) and products/services (name, SKU) matching `q`: `{ q, orders, customers, products }`. Needs 2+ characters, otherwise all three lists are empty. Scoped to the signed-in business. |
 
 ### Customer groups and messages
 | Endpoint | Notes |
