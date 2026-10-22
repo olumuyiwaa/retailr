@@ -43,3 +43,17 @@ export class ResetPasswordDto {
 export class VerifyEmailDto {
   @IsString() @MaxLength(200) token: string;
 }
+
+export class ChangePasswordDto {
+  @IsString() @MinLength(1, { message: "Enter your current password." }) @MaxLength(128) currentPassword: string;
+  @IsString() @MinLength(8, { message: "Password must be at least 8 characters." }) @MaxLength(128) newPassword: string;
+}
+
+export class UpdateMeDto {
+  @Transform(trim) @IsString() @Length(1, 100, { message: "Please enter your name." }) name: string;
+}
+
+export class DeleteAccountDto {
+  @IsString() @MinLength(1, { message: "Enter your password to confirm." }) @MaxLength(128) password: string;
+}
+

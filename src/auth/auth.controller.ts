@@ -1,9 +1,9 @@
-import { Body, Controller, Get, HttpCode, Param, Post } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Param, Patch, Post } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import { AuthContext, CurrentUser, Public } from "../common/decorators";
 import { AuthService } from "./auth.service";
-import { AcceptInviteDto, ForgotPasswordDto, LoginDto, RefreshDto, RegisterDto, ResetPasswordDto, VerifyEmailDto } from "./dto/auth.dto";
+import { AcceptInviteDto, ChangePasswordDto, DeleteAccountDto, ForgotPasswordDto, LoginDto, RefreshDto, RegisterDto, ResetPasswordDto, UpdateMeDto, VerifyEmailDto } from "./dto/auth.dto";
 
 /** Credential endpoints: 10 per minute per client by default (AUTH_RATE_LIMIT overrides it, mainly for tests). */
 const strict = { default: { limit: () => Number(process.env.AUTH_RATE_LIMIT ?? 10), ttl: 60_000 } };
@@ -45,4 +45,19 @@ export class AuthController {
 
   @ApiBearerAuth() @Get("me")
   me(@CurrentUser() user: AuthContext) { return this.auth.me(user.userId); }
+
+  @ApiBearerAuth() @Patch("me")
+  updateMe(@CurrentUser() user: AuthContext, @Body() dto: UpdateMeDto) { return this.auth.updateMe(user.userId, dto.name); }
+
+  @ApiBearerAuth() @Throttle(strict) @HttpCode(204) @Post("change-password")
+  async changePassword(@CurrentUser() user: AuthContext, @Body() dto: ChangePasswordDto) {
+    await this.auth.changePassword(user.userId, dto.currentPassword, dto.newPassword);
+  }
+
+  @ApiBearerAuth() @Throttle(strict) @HttpCode(204) @Post("delete-account")
+  async deleteAccount(@CurrentUser() user: AuthContext, @Body() dto: DeleteAccountDto) {
+    await this.auth.deleteAccount(user.userId, dto.password);
+  }
+
 }
+

@@ -225,6 +225,62 @@ export class AuthService {
     return { ...toAuthUser(user), ...(await this.teamRole(user)) };
   }
 
+
+  /** Update the signed-in person's display name. */
+  async updateMe(userId: string, name: string) {
+    const user = await this.prisma.user.update({ where: { id: userId }, data: { name: name.trim() } });
+    return { ...toAuthUser(user), ...(await this.teamRole(user)) };
+  }
+
+  /** Change password while signed in. Revokes every other session. */
+  async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw AppError.unauthorized();
+    if (!(await argon2.verify(user.passwordHash, currentPassword))) {
+      throw AppError.badRequest("Current password is incorrect.", "WRONG_PASSWORD");
+    }
+    if (currentPassword === newPassword) {
+      throw AppError.badRequest("Choose a new password that is different from the current one.");
+    }
+    const passwordHash = await argon2.hash(newPassword);
+    await this.prisma.$transaction([
+      this.prisma.user.update({ where: { id: userId }, data: { passwordHash } }),
+      this.prisma.refreshToken.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } }),
+    ]);
+  }
+
+  /**
+   * Delete the signed-in account after password confirmation.
+   * - Owner of a business: deletes the whole business (cascade).
+   * - Staff/manager: removes only their login and team seat.
+   * - Super admin: deletes their user row only.
+   */
+  async deleteAccount(userId: string, password: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw AppError.unauthorized();
+    if (!(await argon2.verify(user.passwordHash, password))) {
+      throw AppError.badRequest("Password is incorrect.", "WRONG_PASSWORD");
+    }
+    if (user.role === "SUPER_ADMIN") {
+      const admins = await this.prisma.user.count({ where: { role: "SUPER_ADMIN" } });
+      if (admins <= 1) throw AppError.badRequest("You are the only platform admin. Add another admin before deleting this account.");
+      await this.prisma.user.delete({ where: { id: userId } });
+      return;
+    }
+    if (user.role === "BUSINESS_ADMIN" && user.businessId) {
+      const member = await this.prisma.teamMember.findFirst({
+        where: { userId: user.id, businessId: user.businessId },
+        select: { role: true },
+      });
+      if (member?.role === "OWNER") {
+        // Cascade removes products, orders, the owner user, etc.
+        await this.prisma.business.delete({ where: { id: user.businessId } });
+        return;
+      }
+    }
+    await this.prisma.user.delete({ where: { id: userId } });
+  }
+
   /** A business admin's role on the team, so the app can show only what they may use. */
   private async teamRole(user: User) {
     if (user.role !== "BUSINESS_ADMIN" || !user.businessId) return {};
