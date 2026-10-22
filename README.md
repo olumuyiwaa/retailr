@@ -23,6 +23,7 @@ Backend for [Retailr](https://github.com/olumuyiwaa/retailr_frontend), a multi-t
 | Audit log of platform and sensitive business changes | `src/audit` |
 | Services alongside products (`kind`, no stock, never sold out) and one search over orders, customers and products | `src/catalogue`, `src/search` |
 | Password reset and email verification (single-use hashed links, sessions revoked on reset) | `src/auth`, `src/mail` |
+| Calendar subscription links: private iCalendar feed of bookings for Google, Apple and Outlook (hashed, revocable) | `src/calendar` |
 | Bookable services: opening hours, 30-minute slots, capacity per service, public booking and cancel links, team calendar | `src/bookings` |
 | Notifications for admins: in-app (new orders, low and sold-out stock, new sign-ups for the platform) plus browser push (Web Push, optional VAPID keys) | `src/notifications` |
 | SMS (Termii or log driver) and email (SMTP or log driver): team invites with accept-invite, receipts, customer messages with `{{first_name}}` and `{{store}}` filled in | `src/mail`, `src/auth`, `src/business` |
