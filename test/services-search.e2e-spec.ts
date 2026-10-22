@@ -14,41 +14,66 @@ describe("Services and search", () => {
     patch: (p: string, b: object = {}) => api().patch(`/api/v1${p}`).set(...t.auth).send(b),
   });
   const service = (x: Tenant, over: object = {}) =>
-    as(x).post("/business/products", { name: "Haircut", kind: "service", durationMins: 45, price: 5000, status: "active", ...over });
+    as(x).post("/business/services", { name: "Haircut", durationMins: 45, price: 5000, status: "active", ...over });
   const slugOf = async (x: Tenant) => (await prisma.business.findUniqueOrThrow({ where: { id: x.businessId } })).slug;
+  const checkout = (slug: string, items: object[]) =>
+    api().post(`/api/v1/store/${slug}/orders`).send({ customer: { name: "Ada Obi", email: "ada@example.com", phone: "123" }, shippingAddress: "x", paymentMethod: "cod", items });
 
-  it("creates a service with no stock, and never marks it sold out", async () => {
+  it("keeps services apart from products: separate endpoints, no stock", async () => {
     const x = await newTenant(api);
     const s = (await service(x).expect(201)).body;
-    expect(s).toMatchObject({ kind: "service", durationMins: 45, stock: 0, status: "active" });
-    // even if the owner sends out_of_stock, a service stays active
-    const again = (await as(x).put(`/business/products/${s.id}`, { name: "Haircut", kind: "service", price: 5000, status: "out_of_stock" }).expect(200)).body;
-    expect(again.status).toBe("active");
-    // plain products still default to stocked
+    expect(s).toMatchObject({ durationMins: 45, status: "active" });
+    expect(s.stock).toBeUndefined();
     const p = (await as(x).post("/business/products", { name: "Comb", price: 100, stock: 0, status: "active" }).expect(201)).body;
-    expect(p).toMatchObject({ kind: "product", status: "out_of_stock" });
-    expect((await as(x).get("/business/products?kind=service").expect(200)).body.map((r: any) => r.id)).toEqual([s.id]);
+    expect(p).toMatchObject({ status: "out_of_stock" });
+    expect((await as(x).get("/business/services").expect(200)).body.map((r: any) => r.id)).toEqual([s.id]);
+    expect((await as(x).get("/business/products").expect(200)).body.map((r: any) => r.id)).toEqual([p.id]);
+    await as(x).get(`/business/products/${s.id}`).expect(404);
+    await as(x).get(`/business/services/${p.id}`).expect(404);
+    // services can't be out of stock
+    await as(x).put(`/business/services/${s.id}`, { name: "Haircut", price: 5000, status: "out_of_stock" }).expect(400);
   });
 
-  it("sells a service from the storefront and from a recorded sale without touching stock", async () => {
+  it("lists only active services on the storefront and keeps them out of the products list", async () => {
     const x = await newTenant(api);
-    const s = (await service(x).expect(201)).body;
+    const live = (await service(x).expect(201)).body;
+    await service(x, { name: "Secret", status: "draft" }).expect(201);
     const slug = await slugOf(x);
-    const res = await api().post(`/api/v1/store/${slug}/orders`)
-      .send({ customer: { name: "Ada Obi", email: "ada@example.com", phone: "123" }, shippingAddress: "x", paymentMethod: "cod", items: [{ productId: s.id, qty: 3 }] });
+    expect((await api().get(`/api/v1/store/${slug}/services`).expect(200)).body.map((r: any) => r.id)).toEqual([live.id]);
+    expect((await api().get(`/api/v1/store/${slug}/products`).expect(200)).body).toEqual([]);
+  });
+
+  it("sells a service from the storefront and a recorded sale, counting sold without stock, with priced options", async () => {
+    const x = await newTenant(api);
+    const s = (await service(x, { options: [{ name: "Short", price: 4000 }, { name: "Long", price: 7000 }] }).expect(201)).body;
+    expect(s.options).toHaveLength(2);
+    const slug = await slugOf(x);
+    expect((await checkout(slug, [{ serviceId: s.id, qty: 1 }])).body.code).toBe("OPTION_REQUIRED");
+    const long = s.options.find((o: any) => o.name === "Long");
+    const res = await checkout(slug, [{ serviceId: s.id, optionId: long.id, qty: 3 }]);
     expect(res.status).toBe(201);
-    await as(x).post("/business/sales", { items: [{ productId: s.id, qty: 2 }], channel: "in_store", paymentMethod: "cash", paid: true, handedOver: true, newCustomer: { name: "Walk in" } }).expect(201);
-    const after = (await as(x).get(`/business/products/${s.id}`).expect(200)).body;
-    expect(after).toMatchObject({ stock: 0, sold: 5, status: "active" });
-    // cancelling gives back the sold count, not stock
+    expect(res.body.items[0]).toMatchObject({ serviceId: s.id, optionId: long.id, name: "Haircut (Long)", qty: 3, price: 7000 });
+    expect(res.body.total).toBe(21000);
+    await as(x).post("/business/sales", { items: [{ serviceId: s.id, optionId: long.id, qty: 2 }], channel: "in_store", paymentMethod: "cash", paid: true, handedOver: true, newCustomer: { name: "Walk in" } }).expect(201);
+    expect((await as(x).get(`/business/services/${s.id}`).expect(200)).body.sold).toBe(5);
+    // cancelling gives back the sold count
     const order = (await as(x).get("/business/orders").expect(200)).body.find((o: any) => o.channel === "online");
     await as(x).patch(`/business/orders/${order.id}/status`, { status: "cancelled" }).expect(200);
-    const cancelled = (await as(x).get(`/business/products/${s.id}`).expect(200)).body;
-    expect(cancelled.stock).toBe(0);
-    expect(cancelled.sold).toBeLessThan(5);
+    expect((await as(x).get(`/business/services/${s.id}`).expect(200)).body.sold).toBe(2);
   });
 
-  it("searches orders, customers and products in one call, only within the business", async () => {
+  it("rejects a line that is both or neither, and keeps one business's services private", async () => {
+    const x = await newTenant(api), other = await newTenant(api);
+    const s = (await service(x).expect(201)).body;
+    const p = (await as(x).post("/business/products", { name: "Comb", price: 100, stock: 3, status: "active" }).expect(201)).body;
+    const slug = await slugOf(x);
+    await checkout(slug, [{ serviceId: s.id, productId: p.id, qty: 1 }]).expect(400);
+    await checkout(slug, [{ qty: 1 }]).expect(400);
+    await as(other).get(`/business/services/${s.id}`).expect(404);
+    await as(other).put(`/business/services/${s.id}`, { name: "Mine now", price: 1, status: "active" }).expect(404);
+  });
+
+  it("searches orders, customers, products and services in one call, only within the business", async () => {
     const x = await newTenant(api), other = await newTenant(api);
     const lamp = (await as(x).post("/business/products", { name: "Zebra Lamp", price: 100, stock: 3, status: "active" }).expect(201)).body;
     await service(x, { name: "Zebra Grooming" }).expect(201);
@@ -56,10 +81,11 @@ describe("Services and search", () => {
     await as(x).post("/business/sales", { items: [{ productId: lamp.id, qty: 1 }], channel: "in_store", paymentMethod: "cash", paid: true, handedOver: true, newCustomer: { name: "Zebra Fan" } }).expect(201);
 
     const r = (await as(x).get("/business/search?q=zebra").expect(200)).body;
-    expect(r.products.map((p: any) => p.name).sort()).toEqual(["Zebra Grooming", "Zebra Lamp"]);
+    expect(r.products.map((p: any) => p.name)).toEqual(["Zebra Lamp"]);
+    expect(r.services.map((p: any) => p.name)).toEqual(["Zebra Grooming"]);
     expect(r.customers.map((c: any) => c.name)).toEqual(["Zebra Fan"]);
     expect(r.orders.map((o: any) => o.customerName)).toEqual(["Zebra Fan"]);
-    expect((await as(x).get("/business/search?q=z").expect(200)).body).toMatchObject({ orders: [], customers: [], products: [] });
+    expect((await as(x).get("/business/search?q=z").expect(200)).body).toMatchObject({ orders: [], customers: [], products: [], services: [] });
     await api().get("/api/v1/business/search?q=zebra").expect(401);
   });
 });

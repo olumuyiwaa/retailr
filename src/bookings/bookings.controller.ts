@@ -29,8 +29,8 @@ export class BookingsController {
 export class PublicBookingsController {
   constructor(private readonly bookings: BookingsService) {}
 
-  @Throttle(limit(60)) @Get(":slug/services/:productId/slots")
-  slots(@Param("slug") slug: string, @Param("productId") productId: string, @Query() q: SlotsQuery) { return this.bookings.slots(slug, productId, q.date); }
+  @Throttle(limit(60)) @Get(":slug/services/:serviceId/slots")
+  slots(@Param("slug") slug: string, @Param("serviceId") serviceId: string, @Query() q: SlotsQuery) { return this.bookings.slots(slug, serviceId, q.date); }
 
   @Throttle(limit(10)) @Post(":slug/bookings")
   book(@Param("slug") slug: string, @Body() dto: NewBookingDto) { return this.bookings.book(slug, dto); }

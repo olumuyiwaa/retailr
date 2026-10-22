@@ -4,8 +4,11 @@ import { ArrayMaxSize, ArrayMinSize, IsArray, IsEmail, IsIn, IsInt, IsNumber, Is
 const trim = ({ value }: { value: unknown }) => (typeof value === "string" ? value.trim() : value);
 
 export class CartLineDto {
-  @IsString() productId: string;
+  /** A line is a product or a service: send exactly one of productId / serviceId. */
+  @IsOptional() @IsString() productId?: string;
   @IsOptional() @IsString() variantId?: string;
+  @IsOptional() @IsString() serviceId?: string;
+  @IsOptional() @IsString() optionId?: string;
   @IsNumber({}, { message: "Invalid quantity." }) qty: number;
 }
 

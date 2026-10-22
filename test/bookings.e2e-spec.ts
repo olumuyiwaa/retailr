@@ -22,21 +22,21 @@ describe("Bookings", () => {
   const shop = async (over: object = {}, svc: object = {}) => {
     const t = await newTenant(api);
     await settings(t, over).expect(200);
-    const s = (await as(t).post("/business/products", { name: "Haircut", kind: "service", durationMins: 60, bookable: true, price: 5000, status: "active", ...svc }).expect(201)).body;
+    const s = (await as(t).post("/business/services", { name: "Haircut", durationMins: 60, bookable: true, price: 5000, status: "active", ...svc }).expect(201)).body;
     const slug = (await prisma.business.findUniqueOrThrow({ where: { id: t.businessId } })).slug;
     const slots = async (date = tomorrow()) => (await api().get(`/api/v1/store/${slug}/services/${s.id}/slots?date=${date}`).expect(200)).body;
-    const book = (startsAt: string, over: object = {}) => api().post(`/api/v1/store/${slug}/bookings`).send({ productId: s.id, startsAt, customer: { name: "Ada Obi", email: `ada${++n}@example.com`, phone: "0800" }, ...over });
+    const book = (startsAt: string, over: object = {}) => api().post(`/api/v1/store/${slug}/bookings`).send({ serviceId: s.id, startsAt, customer: { name: "Ada Obi", email: `ada${++n}@example.com`, phone: "0800" }, ...over });
     return { t, s, slug, slots, book };
   };
 
   it("needs a duration to be bookable, and can't be bought through the cart", async () => {
     const t = await newTenant(api);
-    const bad = await as(t).post("/business/products", { name: "Massage", kind: "service", bookable: true, price: 100, status: "active" });
+    const bad = await as(t).post("/business/services", { name: "Massage", bookable: true, price: 100, status: "active" });
     expect(bad.status).toBe(400);
     expect(bad.body.code).toBe("DURATION_REQUIRED");
     const { s, slug } = await shop();
     expect(s).toMatchObject({ bookable: true, maxConcurrent: 1, durationMins: 60 });
-    const r = await api().post(`/api/v1/store/${slug}/orders`).send({ customer: { name: "A", email: "a@example.com", phone: "1" }, shippingAddress: "x", paymentMethod: "cod", items: [{ productId: s.id, qty: 1 }] });
+    const r = await api().post(`/api/v1/store/${slug}/orders`).send({ customer: { name: "A", email: "a@example.com", phone: "1" }, shippingAddress: "x", paymentMethod: "cod", items: [{ serviceId: s.id, qty: 1 }] });
     expect(r.status).toBe(400);
     expect(r.body.code).toBe("BOOKING_REQUIRED");
   });
@@ -150,9 +150,9 @@ describe("Bookings", () => {
   it("lets the team book a customer in by phone, even outside opening hours", async () => {
     const { t, s } = await shop();
     const late = new Date(Date.parse(`${tomorrow()}T00:00:00Z`) + 21 * 3_600_000).toISOString(); // 22:00 Lagos, closed
-    const made = (await as(t).post("/business/bookings", { productId: s.id, startsAt: late, customer: { name: "Walk-in", phone: "0801" } }).expect(201)).body;
+    const made = (await as(t).post("/business/bookings", { serviceId: s.id, startsAt: late, customer: { name: "Walk-in", phone: "0801" } }).expect(201)).body;
     expect(made).toMatchObject({ status: "confirmed", source: "admin" });
-    await as(t).post("/business/bookings", { productId: s.id, startsAt: late, customer: { name: "Second", phone: "0802" } }).expect(409);
+    await as(t).post("/business/bookings", { serviceId: s.id, startsAt: late, customer: { name: "Second", phone: "0802" } }).expect(409);
     expect((await as(t).get(`/business/bookings?from=${new Date().toISOString()}`).expect(200)).body).toHaveLength(1);
     expect((await as(t).get("/business/customers?q=Walk-in").expect(200)).body).toHaveLength(1);
   });

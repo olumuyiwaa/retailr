@@ -17,6 +17,7 @@ export class StoreController {
 
   @Get(":slug") get(@Param("slug") slug: string) { return this.store.store(slug); }
   @Get(":slug/products") products(@Param("slug") slug: string) { return this.store.products(slug); }
+  @Get(":slug/services") services(@Param("slug") slug: string) { return this.store.services(slug); }
   @Get(":slug/categories") categories(@Param("slug") slug: string) { return this.store.categories(slug); }
 
   @Throttle({ default: { limit: () => Number(process.env.AUTH_RATE_LIMIT ?? 30), ttl: 60_000 } })

@@ -20,8 +20,10 @@ export class UpdateOrderStatusDto {
 }
 
 export class SaleLineDto {
-  @IsString() productId: string;
+  @IsOptional() @IsString() productId?: string;
   @IsOptional() @IsString() variantId?: string;
+  @IsOptional() @IsString() serviceId?: string;
+  @IsOptional() @IsString() optionId?: string;
   @IsNumber() qty: number;
   @IsOptional() @IsNumber() price?: number;
 }

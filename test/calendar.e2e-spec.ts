@@ -17,11 +17,11 @@ describe("Calendar subscription links", () => {
   const withBooking = async () => {
     const t = await newTenant(api);
     const hours = Object.fromEntries(["sun", "mon", "tue", "wed", "thu", "fri", "sat"].map((d) => [d, [{ start: "08:00", end: "18:00" }]]));
-    await as(t).post("/business/products", { name: "Haircut", kind: "service", durationMins: 60, bookable: true, price: 5000, status: "active" }).expect(201);
+    await as(t).post("/business/services", { name: "Haircut", durationMins: 60, bookable: true, price: 5000, status: "active" }).expect(201);
     await api().put("/api/v1/business/booking-settings").set(...t.auth).send({ timezone: "Africa/Lagos", hours, noticeHours: 0, autoConfirm: true }).expect(200);
-    const s = (await as(t).get("/business/products").expect(200)).body[0];
+    const s = (await as(t).get("/business/services").expect(200)).body[0];
     const startsAt = new Date(Date.now() + 3 * 86_400_000).toISOString();
-    await as(t).post("/business/bookings", { productId: s.id, startsAt, customer: { name: "Ada Obi", phone: "0800" } }).expect(201);
+    await as(t).post("/business/bookings", { serviceId: s.id, startsAt, customer: { name: "Ada Obi", phone: "0800" } }).expect(201);
     return t;
   };
 

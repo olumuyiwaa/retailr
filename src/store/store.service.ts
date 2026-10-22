@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { AppError } from "../common/errors";
-import { toOrder, toProduct, toPublicStore } from "../common/serializers";
+import { toOrder, toProduct, toPublicStore, toService } from "../common/serializers";
 import { OrderEngine } from "../orders/order-engine.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { NotificationsService } from "../notifications/notifications.service";
@@ -35,10 +35,21 @@ export class StoreService {
     return rows.map(toProduct);
   }
 
+  /** Draft services are hidden. */
+  async services(slug: string) {
+    const biz = await this.live(slug);
+    const rows = await this.prisma.forBusiness(biz.id).service.findMany({
+      where: { status: { not: "DRAFT" } },
+      include: { category: true, images: { orderBy: { position: "asc" } }, options: { orderBy: { position: "asc" } } },
+      orderBy: { createdAt: "desc" },
+    });
+    return rows.map(toService);
+  }
+
   /** The business's own categories that currently have something on sale, alphabetically, with their pictures. */
   async categories(slug: string) {
     const biz = await this.live(slug);
-    const rows = await this.prisma.forBusiness(biz.id).category.findMany({ where: { products: { some: { status: { not: "DRAFT" } } } } });
+    const rows = await this.prisma.forBusiness(biz.id).category.findMany({ where: { OR: [{ products: { some: { status: { not: "DRAFT" } } } }, { services: { some: { status: { not: "DRAFT" } } } }] } });
     return rows.sort((a, b) => a.name.localeCompare(b.name)).map((c) => ({ name: c.name, ...(c.imageUrl ? { image: c.imageUrl } : {}) }));
   }
 

@@ -24,7 +24,7 @@ export class CategoriesService {
   }
 
   async list(businessId: string) {
-    const rows = await this.prisma.forBusiness(businessId).category.findMany({ include: { _count: { select: { products: true } } } });
+    const rows = await this.prisma.forBusiness(businessId).category.findMany({ include: { _count: { select: { products: true, services: true } } } });
     return rows.sort((a, b) => a.name.localeCompare(b.name)).map(toCategory);
   }
 
@@ -64,9 +64,9 @@ export class CategoriesService {
   /** Products in a deleted category stay on sale, just uncategorised. */
   async remove(businessId: string, id: string) {
     const db = this.prisma.forBusiness(businessId);
-    const cat = await db.category.findUnique({ where: { id }, include: { _count: { select: { products: true } } } });
+    const cat = await db.category.findUnique({ where: { id }, include: { _count: { select: { products: true, services: true } } } });
     if (!cat) throw AppError.notFound("Category not found.");
     await db.category.delete({ where: { id } });
-    return { uncategorised: cat._count.products };
+    return { uncategorised: cat._count.products + cat._count.services };
   }
 }

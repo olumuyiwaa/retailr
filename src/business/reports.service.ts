@@ -121,14 +121,15 @@ export class ReportsService {
       db.order.aggregate({ where: { status: { notIn: ["CANCELLED", "REFUNDED"] }, paymentStatus: "UNPAID", placedAt: { gte: start } }, _sum: { total: true } }),
       db.customer.count({ where: { createdAt: { gte: start } } }),
       this.prisma.orderItem.aggregate({ where: { order: { businessId, paymentStatus: "PAID", placedAt: { gte: start } } }, _sum: { qty: true } }),
-      // by product (variants roll up into their product); products deleted since keep their snapshot name
+      // by product or service (variants and options roll up into their parent); deleted ones keep their snapshot name
       this.prisma.$queryRaw<{ name: string; qty: bigint; revenue: Prisma.Decimal }[]>`
-        SELECT COALESCE(p."name", MIN(oi."name")) AS name, SUM(oi."qty") AS qty, SUM(oi."qty" * oi."price") AS revenue
+        SELECT COALESCE(p."name", sv."name", MIN(oi."name")) AS name, SUM(oi."qty") AS qty, SUM(oi."qty" * oi."price") AS revenue
         FROM "OrderItem" oi
         JOIN "Order" o ON o."id" = oi."orderId"
         LEFT JOIN "Product" p ON p."id" = oi."productId"
+        LEFT JOIN "Service" sv ON sv."id" = oi."serviceId"
         WHERE o."businessId" = ${businessId} AND o."paymentStatus" = 'PAID' AND o."placedAt" >= ${start}
-        GROUP BY COALESCE(oi."productId", oi."name"), p."name"
+        GROUP BY COALESCE(oi."productId", oi."serviceId", oi."name"), p."name", sv."name"
         ORDER BY revenue DESC, name ASC
         LIMIT 8`,
     ]);

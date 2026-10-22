@@ -48,8 +48,14 @@ export class OrdersService {
       if (!o) throw AppError.notFound("Order not found.");
 
       const had = holdsStock(o.status), will = holdsStock(next as never);
-      if (had && !will) for (const i of o.items) if (i.productId) await this.engine.returnStock(tx, i.productId, i.variantId, i.qty);
-      if (!had && will) for (const i of o.items) if (i.productId) await this.engine.takeStock(tx, i.productId, i.variantId ?? undefined, i.qty, i.name);
+      if (had && !will) for (const i of o.items) {
+        if (i.productId) await this.engine.returnStock(tx, i.productId, i.variantId, i.qty);
+        else if (i.serviceId) await this.engine.uncountService(tx, i.serviceId, i.qty);
+      }
+      if (!had && will) for (const i of o.items) {
+        if (i.productId) await this.engine.takeStock(tx, i.productId, i.variantId ?? undefined, i.qty, i.name);
+        else if (i.serviceId) await this.engine.countService(tx, i.serviceId, i.qty);
+      }
 
       let paymentStatus = o.paymentStatus;
       if (next === "REFUNDED") paymentStatus = "REFUNDED";

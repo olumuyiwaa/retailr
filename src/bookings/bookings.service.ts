@@ -60,31 +60,31 @@ export class BookingsService {
     return biz;
   }
 
-  private async slotStarts(db: Tx, biz: Business, product: { id: string; durationMins: number | null; maxConcurrent: number }, date: string, now = Date.now()) {
+  private async slotStarts(db: Tx, biz: Business, service: { id: string; durationMins: number | null; maxConcurrent: number }, date: string, now = Date.now()) {
     const dayStart = zonedToUtc(date, 0, biz.timezone), dayEnd = zonedToUtc(date, 1440, biz.timezone);
     const rows = await db.booking.findMany({
-      where: { productId: product.id, status: { in: [...ACTIVE] }, startsAt: { lt: new Date(dayEnd) }, endsAt: { gt: new Date(dayStart) } },
+      where: { serviceId: service.id, status: { in: [...ACTIVE] }, startsAt: { lt: new Date(dayEnd) }, endsAt: { gt: new Date(dayStart) } },
       select: { startsAt: true, endsAt: true },
     });
     return freeSlots({
-      hours: (biz.bookingHours as unknown as Hours | null) ?? DEFAULT_HOURS, tz: biz.timezone, date, durationMins: product.durationMins ?? 60, capacity: product.maxConcurrent,
+      hours: (biz.bookingHours as unknown as Hours | null) ?? DEFAULT_HOURS, tz: biz.timezone, date, durationMins: service.durationMins ?? 60, capacity: service.maxConcurrent,
       booked: rows.map((r) => ({ start: r.startsAt.getTime(), end: r.endsAt.getTime() })), now, noticeMs: biz.bookingNoticeHours * 3_600_000,
     });
   }
 
   /** The times a customer can pick for one service on one day. */
-  async slots(slug: string, productId: string, date: string) {
+  async slots(slug: string, serviceId: string, date: string) {
     const biz = await this.liveBusiness(slug);
     if (!validDate(date)) throw AppError.badRequest("Pick a valid date.", "DATE_INVALID");
     const today = localDate(Date.now(), biz.timezone).date;
     if (date < today) throw AppError.badRequest("Pick a date from today onwards.", "DATE_PAST");
     if (date > addDays(today, MAX_DAYS_AHEAD)) throw AppError.badRequest(`Bookings open up to ${MAX_DAYS_AHEAD} days ahead.`, "DATE_TOO_FAR");
     const db = this.prisma.forBusiness(biz.id) as unknown as Tx;
-    const product = await db.product.findUnique({ where: { id: productId } });
-    if (!product || product.kind !== "SERVICE" || !product.bookable || product.status !== "ACTIVE") throw AppError.notFound("This service can't be booked online.", "NOT_BOOKABLE");
-    const starts = await this.slotStarts(db, biz, product, date);
+    const service = await db.service.findUnique({ where: { id: serviceId } });
+    if (!service || !service.bookable || service.status !== "ACTIVE") throw AppError.notFound("This service can't be booked online.", "NOT_BOOKABLE");
+    const starts = await this.slotStarts(db, biz, service, date);
     return {
-      date, timezone: biz.timezone, durationMins: product.durationMins,
+      date, timezone: biz.timezone, durationMins: service.durationMins,
       slots: starts.map((t) => ({ startsAt: new Date(t).toISOString(), label: timeLabel(t, biz.timezone) })),
     };
   }
@@ -103,30 +103,30 @@ export class BookingsService {
     return this.create(biz, dto, { admin: true });
   }
 
-  private async create(biz: Business, dto: { productId: string; variantId?: string; startsAt: string; customer: Customer; notes?: string }, o: { admin: boolean }) {
+  private async create(biz: Business, dto: { serviceId: string; optionId?: string; startsAt: string; customer: Customer; notes?: string }, o: { admin: boolean }) {
     const start = Date.parse(dto.startsAt);
     if (Number.isNaN(start)) throw AppError.badRequest("Pick a time slot.", "TIME_INVALID");
     if (start < Date.now()) throw AppError.badRequest("That time has already passed.", "TIME_PAST");
 
     const booking = await this.engine.inTenantTransaction(biz.id, async (tx) => {
-      const product = await tx.product.findUnique({ where: { id: dto.productId }, include: { variants: true } });
-      if (!product || product.kind !== "SERVICE" || !product.bookable || !product.durationMins || (!o.admin && product.status !== "ACTIVE")) {
+      const service = await tx.service.findUnique({ where: { id: dto.serviceId }, include: { options: true } });
+      if (!service || !service.bookable || !service.durationMins || (!o.admin && service.status !== "ACTIVE")) {
         throw AppError.badRequest("This service can't be booked right now.", "NOT_BOOKABLE");
       }
-      let variant: (typeof product.variants)[number] | undefined;
-      if (product.variants.length) {
-        variant = product.variants.find((v) => v.id === dto.variantId);
-        if (!variant) throw AppError.badRequest(`Choose an option for ${product.name}.`, "OPTION_REQUIRED");
+      let option: (typeof service.options)[number] | undefined;
+      if (service.options.length) {
+        option = service.options.find((v) => v.id === dto.optionId);
+        if (!option) throw AppError.badRequest(`Choose an option for ${service.name}.`, "OPTION_REQUIRED");
       }
-      const end = start + product.durationMins * 60_000;
+      const end = start + service.durationMins * 60_000;
 
       if (o.admin) {
         // the team may book outside opening hours, but never past the service's capacity
-        const clash = await tx.booking.count({ where: { productId: product.id, status: { in: [...ACTIVE] }, startsAt: { lt: new Date(end) }, endsAt: { gt: new Date(start) } } });
-        if (clash >= product.maxConcurrent) throw AppError.conflict("That time is already fully booked.", "SLOT_TAKEN");
+        const clash = await tx.booking.count({ where: { serviceId: service.id, status: { in: [...ACTIVE] }, startsAt: { lt: new Date(end) }, endsAt: { gt: new Date(start) } } });
+        if (clash >= service.maxConcurrent) throw AppError.conflict("That time is already fully booked.", "SLOT_TAKEN");
       } else {
         const date = localDate(start, biz.timezone).date;
-        const free = await this.slotStarts(tx, biz, product, date);
+        const free = await this.slotStarts(tx, biz, service, date);
         if (!free.includes(start)) throw AppError.conflict("That time was just taken. Please pick another.", "SLOT_TAKEN");
       }
 
@@ -134,8 +134,8 @@ export class BookingsService {
       const status = o.admin || biz.bookingAutoConfirm ? "CONFIRMED" : "PENDING";
       return tx.booking.create({
         data: {
-          productId: product.id, customerId: customer.id, serviceName: product.name, variantName: variant?.name ?? null,
-          price: variant?.price ?? product.price, startsAt: new Date(start), endsAt: new Date(end), status,
+          serviceId: service.id, customerId: customer.id, serviceName: service.name, variantName: option?.name ?? null,
+          price: option?.price ?? service.price, startsAt: new Date(start), endsAt: new Date(end), status,
           customerName: dto.customer.name.trim(), customerEmail: customer.email, customerPhone: dto.customer.phone?.trim() || customer.phone || null,
           notes: dto.notes?.trim() || null, source: o.admin ? "admin" : "store",
         } as never,

@@ -20,7 +20,7 @@ export class BillingService {
       this.prisma.subscription.findUnique({ where: { businessId }, include: { planCoupon: { select: { code: true } } } }),
       db.invoice.findMany({ orderBy: { issuedAt: "desc" } }),
       this.prisma.plan.findMany({ where: { isActive: true }, orderBy: { priceMonthly: "asc" } }),
-      db.product.count(), db.teamMember.count(), db.order.count({ where: { placedAt: { gte: monthStart } } }),
+      Promise.all([db.product.count(), db.service.count()]).then(([a, b]) => a + b), db.teamMember.count(), db.order.count({ where: { placedAt: { gte: monthStart } } }),
       this.storage.usageBytes(businessId),
     ]);
     const p = biz.plan;

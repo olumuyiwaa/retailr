@@ -18,8 +18,8 @@ export class BookingCustomerDto {
 }
 
 export class NewBookingDto {
-  @IsString() productId: string;
-  @IsOptional() @IsString() variantId?: string;
+  @IsString() serviceId: string;
+  @IsOptional() @IsString() optionId?: string;
   /** ISO time from the slots list. */
   @IsString() startsAt: string;
   @ValidateNested() @Type(() => BookingCustomerDto) customer: BookingCustomerDto;
@@ -33,8 +33,8 @@ export class AdminCustomerDto {
 }
 
 export class AdminBookingDto {
-  @IsString() productId: string;
-  @IsOptional() @IsString() variantId?: string;
+  @IsString() serviceId: string;
+  @IsOptional() @IsString() optionId?: string;
   @IsString() startsAt: string;
   @ValidateNested() @Type(() => AdminCustomerDto) customer: AdminCustomerDto;
   @IsOptional() @IsString() @MaxLength(1000) notes?: string;

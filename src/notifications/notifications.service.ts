@@ -85,7 +85,7 @@ export class NotificationsService {
       const taken = new Map<string, number>();
       for (const l of lines) if (l.productId) taken.set(l.productId, (taken.get(l.productId) ?? 0) + l.qty);
       if (!taken.size) return;
-      const products = await this.prisma.product.findMany({ where: { id: { in: [...taken.keys()] }, businessId, kind: "PRODUCT" }, select: { id: true, name: true, stock: true } });
+      const products = await this.prisma.product.findMany({ where: { id: { in: [...taken.keys()] }, businessId }, select: { id: true, name: true, stock: true } });
       for (const p of products) {
         const before = p.stock + (taken.get(p.id) ?? 0);
         if (p.stock <= 0 && before > 0) {

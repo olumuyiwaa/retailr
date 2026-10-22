@@ -75,15 +75,15 @@ export const toInvoice = (i: Invoice) => ({
 });
 
 // ---------- catalogue ----------
-import type { Category, Product, ProductImage, ProductVariant } from "@prisma/client";
+import type { Category, Product, ProductImage, ProductVariant, Service, ServiceImage, ServiceOption } from "@prisma/client";
 
-export const toCategory = (c: Category & { _count?: { products: number } }) => ({
+export const toCategory = (c: Category & { _count?: { products: number; services?: number } }) => ({
   id: c.id,
   businessId: c.businessId,
   name: c.name,
   ...(c.imageUrl ? { image: c.imageUrl } : {}),
   createdAt: iso(c.createdAt)!,
-  ...(c._count ? { productCount: c._count.products } : {}),
+  ...(c._count ? { productCount: c._count.products, serviceCount: c._count.services ?? 0 } : {}),
 });
 
 type ProductRow = Product & {
@@ -100,9 +100,6 @@ export const toProduct = (p: ProductRow) => {
     businessId: p.businessId,
     name: p.name,
     sku: p.sku,
-    kind: lower(p.kind),
-    ...(p.durationMins ? { durationMins: p.durationMins } : {}),
-    ...(p.kind === "SERVICE" && p.bookable ? { bookable: true, maxConcurrent: p.maxConcurrent } : {}),
     category: p.category?.name ?? "",
     description: p.description,
     price: num(p.price),
@@ -116,6 +113,30 @@ export const toProduct = (p: ProductRow) => {
       : {}),
     ...(Array.isArray(p.specs) && p.specs.length ? { specs: p.specs } : {}),
     createdAt: iso(p.createdAt)!,
+  };
+};
+
+type ServiceRow = Service & { category?: Category | null; images?: ServiceImage[]; options?: ServiceOption[] };
+
+export const toService = (s: ServiceRow) => {
+  const images = [...(s.images ?? [])].sort((a, b) => a.position - b.position).map((i) => i.url);
+  const options = [...(s.options ?? [])].sort((a, b) => a.position - b.position);
+  return {
+    id: s.id,
+    businessId: s.businessId,
+    name: s.name,
+    category: s.category?.name ?? "",
+    description: s.description,
+    price: num(s.price),
+    ...(s.durationMins ? { durationMins: s.durationMins } : {}),
+    ...(s.bookable ? { bookable: true, maxConcurrent: s.maxConcurrent } : {}),
+    status: lower(s.status),
+    sold: s.sold,
+    imageColor: s.imageColor,
+    ...(images.length ? { image: images[0], images } : {}),
+    ...(options.length ? { options: options.map((o) => ({ id: o.id, name: o.name, ...(o.price != null ? { price: num(o.price) } : {}) })) } : {}),
+    ...(Array.isArray(s.specs) && s.specs.length ? { specs: s.specs } : {}),
+    createdAt: iso(s.createdAt)!,
   };
 };
 
@@ -154,7 +175,9 @@ export const toOrder = (o: Order & { items?: OrderItem[] }, opts: { publicToken?
   customerName: o.customerName,
   items: (o.items ?? []).map((i) => ({
     productId: i.productId ?? "",
+    ...(i.serviceId ? { serviceId: i.serviceId } : {}),
     ...(i.variantId ? { variantId: i.variantId } : {}),
+    ...(i.optionId ? { optionId: i.optionId } : {}),
     name: i.name,
     qty: i.qty,
     price: num(i.price),
@@ -264,7 +287,7 @@ export const toBusiness = (b: Business, stats: { products: number; orders: numbe
 
 export const toBooking = (b: Booking, opts: { publicToken?: boolean; timezone?: string } = {}) => ({
   id: b.id,
-  productId: b.productId ?? "",
+  serviceId: b.serviceId ?? "",
   serviceName: b.serviceName,
   ...(b.variantName ? { variantName: b.variantName } : {}),
   price: num(b.price),

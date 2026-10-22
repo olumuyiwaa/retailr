@@ -11,7 +11,7 @@ export const MAX_PRODUCT_SPECS = 10;
 const COLORS = ["#c3ceff", "#ffd9a8", "#b7ebd0", "#fecdca", "#d9d6fe", "#b2e9f5"];
 const include = { category: true, images: { orderBy: { position: "asc" } }, variants: { orderBy: { position: "asc" } } } satisfies Prisma.ProductInclude;
 
-function cleanSpecs(input?: { label: string; value: string }[]) {
+export function cleanSpecs(input?: { label: string; value: string }[]) {
   if (!input) return undefined;
   const rows = input.map((s) => ({ label: s.label.trim(), value: s.value.trim() })).filter((s) => s.label || s.value);
   if (rows.length > MAX_PRODUCT_SPECS) throw AppError.badRequest(`A product can have up to ${MAX_PRODUCT_SPECS} details.`);
@@ -23,7 +23,7 @@ function cleanSpecs(input?: { label: string; value: string }[]) {
   return rows;
 }
 
-function cleanVariants(input: ProductDto["variants"], service: boolean) {
+function cleanVariants(input: ProductDto["variants"]) {
   if (!input?.length) return [];
   const seen = new Set<string>();
   return input.map((v, position) => {
@@ -31,7 +31,7 @@ function cleanVariants(input: ProductDto["variants"], service: boolean) {
     if (!name) throw AppError.badRequest("Every variant needs a name.");
     if (seen.has(name.toLowerCase())) throw AppError.badRequest(`Two variants are both called "${name}".`);
     seen.add(name.toLowerCase());
-    const stock = service ? 0 : v.stock ?? 0;
+    const stock = v.stock ?? 0;
     if (!Number.isInteger(stock) || stock < 0) throw AppError.badRequest(`Stock for "${name}" must be a whole number, 0 or more.`);
     if (v.price !== undefined && v.price !== null && !(v.price >= 0)) throw AppError.badRequest(`Enter a valid price for "${name}".`);
     return { id: v.id, name, price: v.price ?? null, stock, position };
@@ -42,9 +42,8 @@ function cleanVariants(input: ProductDto["variants"], service: boolean) {
 export class ProductsService {
   constructor(private readonly prisma: PrismaService, private readonly storage: StorageService) {}
 
-  async list(businessId: string, q: { q?: string; kind?: string; status?: string; categoryId?: string; page?: number; limit?: number }) {
+  async list(businessId: string, q: { q?: string; status?: string; categoryId?: string; page?: number; limit?: number }) {
     const where: Prisma.ProductWhereInput = {
-      ...(q.kind ? { kind: q.kind.toUpperCase() as never } : {}),
       ...(q.status ? { status: q.status.toUpperCase() as never } : {}),
       ...(q.categoryId ? { categoryId: q.categoryId } : {}),
       ...(q.q?.trim() ? { OR: [{ name: { contains: q.q.trim(), mode: "insensitive" } }, { sku: { contains: q.q.trim(), mode: "insensitive" } }] } : {}),
@@ -71,7 +70,8 @@ export class ProductsService {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${businessId}))`;
       const biz = await this.prisma.business.findUniqueOrThrow({ where: { id: businessId }, include: { plan: true } });
       const count = await tx.product.count();
-      if (biz.plan.maxProducts !== -1 && count >= biz.plan.maxProducts) {
+      // the plan limit covers products and services together
+      if (biz.plan.maxProducts !== -1 && count + (await tx.service.count()) >= biz.plan.maxProducts) {
         throw AppError.forbidden(`Your ${biz.plan.name} plan is limited to ${biz.plan.maxProducts} products. Upgrade to add more.`, "PLAN_LIMIT_PRODUCTS");
       }
       const p = await tx.product.create({
@@ -130,18 +130,16 @@ export class ProductsService {
   /** Validates the body and works out what to store. */
   private async prepare(businessId: string, dto: ProductDto) {
     const specs = cleanSpecs(dto.specs);
-    const service = dto.kind === "service";
-    const variants = cleanVariants(dto.variants, service);
+    const variants = cleanVariants(dto.variants);
     if (dto.images && dto.images.length > MAX_PRODUCT_IMAGES) throw AppError.badRequest(`A product can have up to ${MAX_PRODUCT_IMAGES} photos.`);
     const images = (dto.images ?? []).filter(Boolean);
     for (const url of images) {
       if (!this.storage.isOwnedUrl(businessId, url)) throw AppError.badRequest("Upload the photo again, then save.", "IMAGE_NOT_OWNED");
     }
-    if (service && dto.bookable && !dto.durationMins) throw AppError.badRequest("Add how long the service takes so customers can pick a time.", "DURATION_REQUIRED");
     const given = dto.stock ?? 0;
-    if (!service && (!Number.isInteger(given) || given < 0)) throw AppError.badRequest("Stock must be a whole number, 0 or more.");
+    if ((!Number.isInteger(given) || given < 0)) throw AppError.badRequest("Stock must be a whole number, 0 or more.");
     const name = dto.name.trim();
-    if (!name) throw AppError.badRequest(service ? "Enter a service name." : "Enter a product name.");
+    if (!name) throw AppError.badRequest("Enter a product name.");
 
     // a product's category is one of the business's own, matched case-insensitively
     let categoryId: string | null = null;
@@ -152,11 +150,10 @@ export class ProductsService {
       categoryId = cat.id;
     }
 
-    // a service is never "sold out": no stock, and a stale out-of-stock status becomes active
-    const stock = service ? 0 : variants.length ? variants.reduce((s, v) => s + v.stock, 0) : given;
-    const status = service ? (dto.status === "draft" ? "DRAFT" : "ACTIVE") : (stock === 0 && dto.status === "active" ? "out_of_stock" : dto.status).toUpperCase();
+    const stock = variants.length ? variants.reduce((s, v) => s + v.stock, 0) : given;
+    const status = (stock === 0 && dto.status === "active" ? "out_of_stock" : dto.status).toUpperCase();
     return {
-      scalars: { name, kind: (service ? "SERVICE" : "PRODUCT") as never, bookable: service && !!dto.bookable, ...(dto.maxConcurrent !== undefined ? { maxConcurrent: dto.maxConcurrent } : {}), ...(service ? (dto.durationMins !== undefined ? { durationMins: dto.durationMins } : {}) : { durationMins: null }), sku: dto.sku?.trim() ?? "", description: dto.description?.trim() ?? "", price: dto.price, stock, status, categoryId },
+      scalars: { name, sku: dto.sku?.trim() ?? "", description: dto.description?.trim() ?? "", price: dto.price, stock, status, categoryId },
       specs: dto.specs === undefined ? undefined : specs!.length ? specs : null,
       images,
       imagesGiven: dto.images !== undefined,

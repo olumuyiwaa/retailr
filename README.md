@@ -21,7 +21,7 @@ Backend for [Retailr](https://github.com/olumuyiwaa/retailr_frontend), a multi-t
 | Visit tracking (`POST /track`, public, de-duplicated, bounded) and analytics for businesses and the platform; funnel steps count distinct visits, and "placed an order" counts visits that ordered | `src/analytics` |
 | Subscription payments (Paystack, pluggable provider): checkout, signed webhook, renewals, dunning and trial jobs | `src/payments`, `src/jobs`, `src/billing` |
 | Audit log of platform and sensitive business changes | `src/audit` |
-| Services alongside products (`kind`, no stock, never sold out) and one search over orders, customers and products | `src/catalogue`, `src/search` |
+| Services as their own tables and endpoints (`Service`, `ServiceOption`; no stock, never sold out) beside products, and one search over orders, customers, products and services | `src/catalogue`, `src/search` |
 | Password reset and email verification (single-use hashed links, sessions revoked on reset) | `src/auth`, `src/mail` |
 | Calendar subscription links: private iCalendar feed of bookings for Google, Apple and Outlook (hashed, revocable) | `src/calendar` |
 | Bookable services: opening hours, 30-minute slots, capacity per service, public booking and cancel links, team calendar | `src/bookings` |

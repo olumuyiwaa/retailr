@@ -31,16 +31,7 @@ export class ProductDto {
   @IsOptional() @IsString() category?: string;
   @IsOptional() @IsString() @MaxLength(5000) description?: string;
   @IsNumber({}, { message: "Enter a valid price." }) @Min(0, { message: "Enter a valid price." }) price: number;
-  /** Ignored for services. */
   @IsOptional() @IsNumber() stock?: number;
-  /** "product" (default) is stocked; a "service" has no stock and is never sold out. */
-  @IsOptional() @IsIn(["product", "service"]) kind?: "product" | "service";
-  /** Minutes a service takes. Omit to keep, null to clear. */
-  @IsOptional() @IsInt() @Min(1) @Max(1440) durationMins?: number | null;
-  /** Services only: customers pick a time slot instead of adding it to a cart. Needs durationMins. */
-  @IsOptional() @IsBoolean() bookable?: boolean;
-  /** How many bookings of this service may overlap. */
-  @IsOptional() @IsInt() @Min(1) @Max(50) maxConcurrent?: number;
   @IsIn(["active", "draft", "out_of_stock"]) status: "active" | "draft" | "out_of_stock";
   /** Photo URLs from /business/uploads, cover first. Omit to keep, [] to remove all. */
   @IsOptional() @IsArray() @IsString({ each: true }) images?: string[];
@@ -52,8 +43,40 @@ export class ProductDto {
 
 export class ListProductsQuery {
   @IsOptional() @IsString() q?: string;
-  @IsOptional() @IsIn(["product", "service"]) kind?: "product" | "service";
   @IsOptional() @IsIn(["active", "draft", "out_of_stock"]) status?: "active" | "draft" | "out_of_stock";
+  @IsOptional() @IsString() categoryId?: string;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(200) limit?: number;
+}
+
+export class ServiceOptionDto {
+  @IsOptional() @IsString() id?: string;
+  @IsString({ message: "Every option needs a name." }) name: string;
+  @IsOptional() @IsNumber() price?: number;
+}
+
+export class ServiceDto {
+  @IsString() @MaxLength(160, { message: "Keep service names under 160 characters." }) name: string;
+  /** The name of one of the business's own categories; blank for none. */
+  @IsOptional() @IsString() category?: string;
+  @IsOptional() @IsString() @MaxLength(5000) description?: string;
+  @IsNumber({}, { message: "Enter a valid price." }) @Min(0, { message: "Enter a valid price." }) price: number;
+  /** Minutes the service takes. Omit to keep, null to clear. */
+  @IsOptional() @IsInt() @Min(1) @Max(1440) durationMins?: number | null;
+  /** Customers pick a time slot instead of adding it to a cart. Needs durationMins. */
+  @IsOptional() @IsBoolean() bookable?: boolean;
+  /** How many bookings may overlap. */
+  @IsOptional() @IsInt() @Min(1) @Max(50) maxConcurrent?: number;
+  @IsIn(["active", "draft"]) status: "active" | "draft";
+  @IsOptional() @IsArray() @IsString({ each: true }) images?: string[];
+  /** PUT replaces the options: omit or send [] for none. Include `id` to keep an existing option. */
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => ServiceOptionDto) options?: ServiceOptionDto[];
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => SpecDto) specs?: SpecDto[];
+}
+
+export class ListServicesQuery {
+  @IsOptional() @IsString() q?: string;
+  @IsOptional() @IsIn(["active", "draft"]) status?: "active" | "draft";
   @IsOptional() @IsString() categoryId?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(200) limit?: number;

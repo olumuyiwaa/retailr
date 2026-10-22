@@ -9,7 +9,8 @@ export type Tx = Parameters<Parameters<Client["$transaction"]>[0]>[0];
 
 export type OrderSource = "store" | "sale";
 
-export interface LineInput { productId: string; variantId?: string; qty: number; /** only honoured for recorded sales */ price?: number }
+/** A line is either a product (productId, variantId) or a service (serviceId, optionId). */
+export interface LineInput { productId?: string; variantId?: string; serviceId?: string; optionId?: string; qty: number; /** only honoured for recorded sales */ price?: number }
 
 export interface NewOrder {
   source: OrderSource;
@@ -94,26 +95,43 @@ export class OrderEngine {
       }
     }
 
-    // the same product listed twice must not slip past the stock check, so merge lines first
+    // the same item listed twice must not slip past the stock check, so merge lines first
     const merged = new Map<string, LineInput>();
     for (const it of o.items) {
+      if (!!it.productId === !!it.serviceId) throw AppError.badRequest(msg.gone, "ITEM_GONE"); // exactly one of the two
       if (!Number.isInteger(it.qty) || it.qty < 1) {
-        const p = await tx.product.findUnique({ where: { id: it.productId }, select: { name: true } });
-        throw AppError.badRequest(msg.qty(p?.name ?? "this item"), "BAD_QUANTITY");
+        const name = it.productId
+          ? (await tx.product.findUnique({ where: { id: it.productId }, select: { name: true } }))?.name
+          : (await tx.service.findUnique({ where: { id: it.serviceId! }, select: { name: true } }))?.name;
+        throw AppError.badRequest(msg.qty(name ?? "this item"), "BAD_QUANTITY");
       }
-      const key = `${it.productId}|${it.variantId ?? ""}`;
+      const key = `${it.productId ?? ""}|${it.variantId ?? ""}|${it.serviceId ?? ""}|${it.optionId ?? ""}`;
       const prev = merged.get(key);
       merged.set(key, prev ? { ...prev, qty: prev.qty + it.qty } : { ...it });
     }
     const lines = Array.from(merged.values());
 
-    const products = await tx.product.findMany({ where: { id: { in: lines.map((l) => l.productId) } }, include: { variants: true } });
-    const byId = new Map(products.map((p) => [p.id, p]));
+    const products = await tx.product.findMany({ where: { id: { in: lines.flatMap((l) => (l.productId ? [l.productId] : [])) } }, include: { variants: true } });
+    const services = await tx.service.findMany({ where: { id: { in: lines.flatMap((l) => (l.serviceId ? [l.serviceId] : [])) } }, include: { options: true } });
+    const productById = new Map(products.map((p) => [p.id, p]));
+    const serviceById = new Map(services.map((p) => [p.id, p]));
 
     const resolved = lines.map((l) => {
-      const p = byId.get(l.productId);
+      if (l.serviceId) {
+        const sv = serviceById.get(l.serviceId);
+        if (!sv || (o.source === "store" && sv.status === "DRAFT")) throw AppError.badRequest(msg.gone, "ITEM_GONE");
+        if (o.source === "store" && sv.bookable) throw AppError.badRequest(`${sv.name} has to be booked for a time slot, not bought through the cart.`, "BOOKING_REQUIRED");
+        if (o.source === "sale" && l.price !== undefined && !(l.price >= 0)) throw AppError.badRequest(`Enter a valid price for ${sv.name}.`);
+        let option = undefined as (typeof sv.options)[number] | undefined;
+        if (sv.options.length) {
+          option = sv.options.find((v) => v.id === l.optionId);
+          if (!option) throw AppError.badRequest(msg.option(sv.name), "OPTION_REQUIRED");
+        }
+        const price = D(o.source === "sale" && l.price !== undefined ? l.price : option?.price ?? sv.price);
+        return { product: undefined, variant: undefined, service: sv, option, label: option ? `${sv.name} (${option.name})` : sv.name, qty: l.qty, price };
+      }
+      const p = productById.get(l.productId!);
       if (!p || (o.source === "store" && p.status === "DRAFT")) throw AppError.badRequest(msg.gone, "ITEM_GONE");
-      if (o.source === "store" && p.bookable) throw AppError.badRequest(`${p.name} has to be booked for a time slot, not bought through the cart.`, "BOOKING_REQUIRED");
       if (o.source === "sale" && l.price !== undefined && !(l.price >= 0)) throw AppError.badRequest(`Enter a valid price for ${p.name}.`);
       let variant = undefined as (typeof p.variants)[number] | undefined;
       if (p.variants.length) {
@@ -121,14 +139,12 @@ export class OrderEngine {
         if (!variant) throw AppError.badRequest(msg.option(p.name), "OPTION_REQUIRED");
       }
       const label = variant ? `${p.name} (${variant.name})` : p.name;
-      if (p.kind === "PRODUCT") {
-        const available = variant ? variant.stock : p.stock;
-        // storefront: a sold-out status also blocks the sale even if a stale stock number says otherwise
-        if (available <= 0 || (!variant && o.source === "store" && p.status === "OUT_OF_STOCK")) throw AppError.badRequest(`${label} is sold out.`, "SOLD_OUT");
-        if (l.qty > available) throw AppError.badRequest(`Only ${available} of ${label} left in stock.`, "STOCK_INSUFFICIENT");
-      }
+      const available = variant ? variant.stock : p.stock;
+      // storefront: a sold-out status also blocks the sale even if a stale stock number says otherwise
+      if (available <= 0 || (!variant && o.source === "store" && p.status === "OUT_OF_STOCK")) throw AppError.badRequest(`${label} is sold out.`, "SOLD_OUT");
+      if (l.qty > available) throw AppError.badRequest(`Only ${available} of ${label} left in stock.`, "STOCK_INSUFFICIENT");
       const price = D(o.source === "sale" && l.price !== undefined ? l.price : variant?.price ?? p.price);
-      return { product: p, variant, label, qty: l.qty, price };
+      return { product: p, variant, service: undefined, option: undefined, label, qty: l.qty, price };
     });
 
     const subtotal = cents(resolved.reduce((s, r) => s.add(r.price.mul(r.qty)), D(0)));
@@ -151,7 +167,10 @@ export class OrderEngine {
 
     const customer = await this.resolveCustomer(tx, o);
 
-    for (const r of resolved) await this.takeStock(tx, r.product.id, r.variant?.id, r.qty, r.label);
+    for (const r of resolved) {
+      if (r.service) await this.countService(tx, r.service.id, r.qty);
+      else await this.takeStock(tx, r.product!.id, r.variant?.id, r.qty, r.label);
+    }
 
     // atomic counter: "#AD1180" = two letters of the slug + a per-business sequence
     const { orderSeq, slug } = await this.prisma.business.update({ where: { id: biz.id }, data: { orderSeq: { increment: 1 } }, select: { orderSeq: true, slug: true } });
@@ -171,7 +190,7 @@ export class OrderEngine {
         status: o.status,
         paymentStatus: o.paymentStatus,
         subtotal, discount, total, couponCode: couponCode ?? null,
-        items: { create: resolved.map((r) => ({ productId: r.product.id, variantId: r.variant?.id ?? null, name: r.label, qty: r.qty, price: r.price })) },
+        items: { create: resolved.map((r) => ({ productId: r.product?.id ?? null, variantId: r.variant?.id ?? null, serviceId: r.service?.id ?? null, optionId: r.option?.id ?? null, name: r.label, qty: r.qty, price: r.price })) },
       } as never,
       include: { items: true },
     });
@@ -222,14 +241,17 @@ export class OrderEngine {
     await tx.customer.update({ where: { id: customerId }, data: { ordersCount: agg._count, totalSpent: agg._sum.total ?? 0 } });
   }
 
+  /** Services have no stock; a sale only counts towards "sold". */
+  async countService(tx: Tx, serviceId: string, qty: number) {
+    await tx.service.updateMany({ where: { id: serviceId }, data: { sold: { increment: qty } } });
+  }
+
+  async uncountService(tx: Tx, serviceId: string, qty: number) {
+    await tx.$executeRaw`UPDATE "Service" SET "sold" = GREATEST("sold" - ${qty}, 0) WHERE id = ${serviceId}`;
+  }
+
   /** Guarded decrement: the update only succeeds while enough stock is left, so two shoppers can't both buy the last item. */
   async takeStock(tx: Tx, productId: string, variantId: string | undefined, qty: number, label: string) {
-    // services have no stock to take; they only count towards "sold"
-    const kind = (await tx.product.findUnique({ where: { id: productId }, select: { kind: true } }))?.kind;
-    if (kind === "SERVICE") {
-      await tx.product.updateMany({ where: { id: productId }, data: { sold: { increment: qty } } });
-      return;
-    }
     const short = async () => {
       const left = variantId
         ? (await tx.productVariant.findUnique({ where: { id: variantId }, select: { stock: true } }))?.stock ?? 0
@@ -247,11 +269,6 @@ export class OrderEngine {
 
   /** Puts stock back (cancelled or refunded order) and takes `sold` down with it. */
   async returnStock(tx: Tx, productId: string, variantId: string | null, qty: number) {
-    const kind = (await tx.product.findUnique({ where: { id: productId }, select: { kind: true } }))?.kind;
-    if (kind === "SERVICE") {
-      await tx.$executeRaw`UPDATE "Product" SET "sold" = GREATEST("sold" - ${qty}, 0) WHERE id = ${productId}`;
-      return;
-    }
     if (variantId) await tx.productVariant.updateMany({ where: { id: variantId, productId }, data: { stock: { increment: qty } } });
     await tx.$executeRaw`UPDATE "Product" SET "stock" = "stock" + ${qty}, "sold" = GREATEST("sold" - ${qty}, 0) WHERE id = ${productId}`;
     await tx.product.updateMany({ where: { id: productId, stock: { gt: 0 }, status: "OUT_OF_STOCK" }, data: { status: "ACTIVE" } });
