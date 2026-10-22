@@ -33,6 +33,7 @@ export class PlanDto {
   @IsOptional() @IsNumber() transactionFeePct?: number;
   @ValidateNested() @Type(() => LimitsDto) limits: LimitsDto;
   @IsArray() @ArrayMaxSize(30) @IsString({ each: true }) features: string[];
+  @IsOptional() @IsArray() @ArrayMaxSize(20) @IsString({ each: true }) themes?: string[];
   @IsOptional() @IsBoolean() highlighted?: boolean;
   @IsOptional() @IsBoolean() isActive?: boolean;
   @IsOptional() localPrices?: Record<string, { monthly: number; yearly: number }>;

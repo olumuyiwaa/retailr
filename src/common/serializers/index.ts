@@ -26,6 +26,7 @@ export const toPlan = (p: Plan) => ({
   transactionFeePct: num(p.transactionFeePct),
   limits: { products: p.maxProducts, staff: p.maxStaff, ordersPerMonth: p.maxOrdersPerMonth, storageGb: p.maxStorageGb },
   features: p.features,
+  themes: allowedThemes(p.themes),
   ...(p.highlighted ? { highlighted: true } : {}),
   isActive: p.isActive,
   ...(p.localPrices ? { localPrices: p.localPrices } : {}),
@@ -121,7 +122,14 @@ export const toProduct = (p: ProductRow) => {
 // ---------- storefront, orders, customers ----------
 import type { Booking, Business, Customer, Order, OrderItem } from "@prisma/client";
 
-export const toPublicStore = (b: Business) => ({
+/** "classic" is the fallback theme, so every plan includes it. */
+export const allowedThemes = (themes: string[] | null | undefined) => ["classic", ...(themes ?? []).filter((t) => t !== "classic")];
+
+/** The theme a storefront actually renders: the saved one only while the plan still includes it. */
+export const effectiveTheme = (theme: string | null | undefined, planThemes: string[] | null | undefined) =>
+  theme && allowedThemes(planThemes).includes(theme) ? theme : null;
+
+export const toPublicStore = (b: Business, plan?: { themes: string[] } | null) => ({
   id: b.id,
   name: b.name,
   slug: b.slug,
@@ -131,7 +139,7 @@ export const toPublicStore = (b: Business) => ({
   city: b.city,
   country: b.country,
   brandColor: b.brandColor,
-  ...(b.theme ? { theme: b.theme } : {}),
+  ...((plan ? effectiveTheme(b.theme, plan.themes) : b.theme) ? { theme: plan ? effectiveTheme(b.theme, plan.themes)! : b.theme! } : {}),
   ...(b.logoUrl ? { logo: b.logoUrl } : {}),
   currency: b.currency,
   paymentMethods: b.paymentMethods,

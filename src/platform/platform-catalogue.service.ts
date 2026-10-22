@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { AppError } from "../common/errors";
 import { num, toPlan, toPlanCoupon } from "../common/serializers";
 import { PrismaService } from "../prisma/prisma.service";
+import { THEME_IDS } from "../business/dto/business.dto";
 import { PlanCouponDto, PlanDto } from "./dto/platform.dto";
 
 const CURRENCIES = ["NGN", "GHS", "KES", "USD"];
@@ -41,10 +42,12 @@ export class PlatformCatalogueService {
       if (!ok) throw AppError.badRequest("Enter valid local prices.");
       localPrices = dto.localPrices as Prisma.InputJsonValue;
     }
+    const themes = [...new Set(["classic", ...(dto.themes ?? THEME_IDS)])];
+    if (themes.some((t) => !(THEME_IDS as readonly string[]).includes(t))) throw AppError.badRequest("Choose themes from the list.");
     const data = {
       name, description: dto.description?.trim() ?? "", priceMonthly: dto.priceMonthly, priceYearly: dto.priceYearly, transactionFeePct: fee,
       maxProducts: l.products, maxStaff: l.staff, maxOrdersPerMonth: l.ordersPerMonth, maxStorageGb: l.storageGb,
-      features, highlighted: dto.highlighted ?? false, isActive: dto.isActive ?? true, localPrices,
+      features, themes, highlighted: dto.highlighted ?? false, isActive: dto.isActive ?? true, localPrices,
     };
     return toPlan(await this.prisma.plan.upsert({ where: { id }, create: { id, ...data }, update: data }));
   }

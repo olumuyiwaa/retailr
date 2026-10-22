@@ -1,5 +1,4 @@
 import { Injectable } from "@nestjs/common";
-import { Business } from "@prisma/client";
 import { AppError } from "../common/errors";
 import { toOrder, toProduct, toPublicStore } from "../common/serializers";
 import { OrderEngine } from "../orders/order-engine.service";
@@ -14,13 +13,16 @@ export class StoreService {
   constructor(private readonly prisma: PrismaService, private readonly engine: OrderEngine, private readonly notifications: NotificationsService) {}
 
   /** Only businesses that are live (active or on trial) have a public store. */
-  private async live(slug: string): Promise<Business> {
-    const biz = await this.prisma.business.findUnique({ where: { slug: slug.toLowerCase() } });
+  private async live(slug: string) {
+    const biz = await this.prisma.business.findUnique({ where: { slug: slug.toLowerCase() }, include: { plan: { select: { themes: true } } } });
     if (!biz || (biz.status !== "ACTIVE" && biz.status !== "TRIAL")) throw AppError.notFound(UNAVAILABLE, "STORE_UNAVAILABLE");
     return biz;
   }
 
-  async store(slug: string) { return toPublicStore(await this.live(slug)); }
+  async store(slug: string) {
+    const biz = await this.live(slug);
+    return toPublicStore(biz, biz.plan);
+  }
 
   /** Draft products are hidden; sold-out products stay visible but can't be bought. */
   async products(slug: string) {
@@ -67,8 +69,8 @@ export class StoreService {
 
   /** The confirmation and invoice pages: found by an unguessable token, not the order id. */
   async orderByToken(token: string) {
-    const order = await this.prisma.order.findUnique({ where: { publicToken: token }, include: { items: true, business: true } });
+    const order = await this.prisma.order.findUnique({ where: { publicToken: token }, include: { items: true, business: { include: { plan: { select: { themes: true } } } } } });
     if (!order) throw AppError.notFound("Order not found.");
-    return { order: toOrder(order, { publicToken: true }), store: toPublicStore(order.business) };
+    return { order: toOrder(order, { publicToken: true }), store: toPublicStore(order.business, order.business.plan) };
   }
 }

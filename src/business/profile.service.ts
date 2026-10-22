@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { AppError } from "../common/errors";
-import { num, toBusiness } from "../common/serializers";
+import { allowedThemes, num, toBusiness } from "../common/serializers";
 import { PrismaService } from "../prisma/prisma.service";
 import { StorageService } from "../storage/storage.service";
 import { ProfileDto } from "./dto/business.dto";
@@ -37,7 +37,15 @@ export class ProfileService {
     if (dto.currency !== undefined) data.currency = dto.currency;
     if (dto.paymentMethods !== undefined) data.paymentMethods = dto.paymentMethods;
     if (dto.bankDetails !== undefined) data.bankDetails = dto.bankDetails.trim();
-    if (dto.theme !== undefined) data.theme = dto.theme; // null goes back to the default theme
+    if (dto.theme !== undefined) {
+      if (dto.theme !== null) {
+        const plan = await this.prisma.plan.findFirstOrThrow({ where: { businesses: { some: { id: businessId } } } });
+        if (!allowedThemes(plan.themes).includes(dto.theme)) {
+          throw AppError.forbidden(`The ${dto.theme} theme isn't included in your ${plan.name} plan. Upgrade to use it.`, "THEME_NOT_IN_PLAN");
+        }
+      }
+      data.theme = dto.theme; // null goes back to the default theme
+    }
     if (dto.logo !== undefined) {
       if (dto.logo !== null && !this.storage.isOwnedUrl(businessId, dto.logo)) throw AppError.badRequest("Upload the logo again, then save.", "IMAGE_NOT_OWNED");
       data.logoUrl = dto.logo;
