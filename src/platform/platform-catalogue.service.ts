@@ -32,7 +32,7 @@ export class PlatformCatalogueService {
     if (!name) throw AppError.badRequest("Enter a plan name.");
     if (!(dto.priceMonthly >= 0) || !(dto.priceYearly >= 0)) throw AppError.badRequest("Prices can't be negative.");
     const l = dto.limits;
-    if (![l.products, l.staff, l.ordersPerMonth, l.storageGb].every(whole)) throw AppError.badRequest("Limits must be whole numbers, or -1 for unlimited.");
+    if (![l.products, l.staff, l.ordersPerMonth, l.storageGb, l.smsPerMonth ?? 50].every(whole)) throw AppError.badRequest("Limits must be whole numbers, or -1 for unlimited.");
     const fee = dto.transactionFeePct ?? 0;
     if (!(fee >= 0 && fee <= 100)) throw AppError.badRequest("The transaction fee must be between 0 and 100%.");
     const features = dto.features.map((f) => f.trim()).filter(Boolean);
@@ -46,7 +46,7 @@ export class PlatformCatalogueService {
     if (themes.some((t) => !(THEME_IDS as readonly string[]).includes(t))) throw AppError.badRequest("Choose themes from the list.");
     const data = {
       name, description: dto.description?.trim() ?? "", priceMonthly: dto.priceMonthly, priceYearly: dto.priceYearly, transactionFeePct: fee,
-      maxProducts: l.products, maxStaff: l.staff, maxOrdersPerMonth: l.ordersPerMonth, maxStorageGb: l.storageGb,
+      maxProducts: l.products, maxStaff: l.staff, maxOrdersPerMonth: l.ordersPerMonth, maxStorageGb: l.storageGb, maxSmsPerMonth: l.smsPerMonth ?? 50,
       features, themes, highlighted: dto.highlighted ?? false, isActive: dto.isActive ?? true, localPrices,
     };
     return toPlan(await this.prisma.plan.upsert({ where: { id }, create: { id, ...data }, update: data }));

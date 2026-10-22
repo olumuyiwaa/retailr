@@ -4,7 +4,7 @@ import { Prisma } from "@prisma/client";
  * Models that carry a businessId. Child tables (ProductImage, ProductVariant, OrderItem,
  * CustomerGroupMember) have no businessId and must only be reached through their parent.
  */
-const TENANT_MODELS = new Set(["TeamMember", "Subscription", "Invoice", "Category", "Product", "Customer", "CustomerGroup", "Order", "Coupon", "Message", "Booking", "CalendarFeed", "Service"]);
+const TENANT_MODELS = new Set(["TeamMember", "Subscription", "Invoice", "Category", "Product", "Customer", "CustomerGroup", "Order", "Coupon", "Message", "Expense", "Booking", "CalendarFeed", "Service"]);
 
 const WHERE_OPS = new Set([
   "findFirst", "findFirstOrThrow", "findMany", "findUnique", "findUniqueOrThrow", "count", "aggregate", "groupBy",

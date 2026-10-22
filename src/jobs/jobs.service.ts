@@ -4,6 +4,7 @@ import { AuditService } from "../audit/audit.service";
 import { MailService } from "../mail/mail.service";
 import { trialEndingMail } from "../mail/templates";
 import { addPeriod, PaymentsService } from "../payments/payments.service";
+import { MessagesService } from "../business/messages.service";
 import { NotificationsService } from "../notifications/notifications.service";
 import { PrismaService } from "../prisma/prisma.service";
 
@@ -20,7 +21,7 @@ export class JobsService implements OnModuleInit, OnModuleDestroy {
   private timer?: NodeJS.Timeout;
   private lastNightly = "";
 
-  constructor(private readonly prisma: PrismaService, private readonly payments: PaymentsService, private readonly mail: MailService, private readonly config: ConfigService, private readonly audit: AuditService, private readonly notifications: NotificationsService) {}
+  constructor(private readonly prisma: PrismaService, private readonly payments: PaymentsService, private readonly mail: MailService, private readonly config: ConfigService, private readonly audit: AuditService, private readonly notifications: NotificationsService, private readonly messages: MessagesService) {}
 
   onModuleInit() {
     if ((this.config.get("JOBS_ENABLED") ?? "true") !== "true") return;
@@ -33,6 +34,7 @@ export class JobsService implements OnModuleInit, OnModuleDestroy {
   /** Hourly: billing. Once a day around 02:00 UTC: housekeeping. */
   async tick(now = new Date()) {
     try {
+      await this.messages.processQueue(80);
       await this.billing(now);
       const day = now.toISOString().slice(0, 10);
       if (now.getUTCHours() === 2 && this.lastNightly !== day) { this.lastNightly = day; await this.nightly(now); }

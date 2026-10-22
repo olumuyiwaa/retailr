@@ -216,6 +216,8 @@ model Plan {
   maxStaff          Int
   maxOrdersPerMonth Int
   maxStorageGb      Int
+  /// -1 = unlimited. Monthly SMS campaign credits for the business.
+  maxSmsPerMonth    Int      @default(50)
   features          String[]
   /// Storefront theme ids this plan may use ("classic" is always allowed). Set by the platform admin.
   themes            String[] @default(["classic", "showcase", "atelier", "market"])
@@ -283,6 +285,7 @@ model Business {
   coupons       Coupon[]
   groups        CustomerGroup[]
   messages      Message[]
+  expenses      Expense[]
   planCoupons   PlanCoupon[]
   redemptions   PlanCouponRedemption[]
 
@@ -726,9 +729,64 @@ model Message {
   sentCount      Int            @default(0)
   failedCount    Int            @default(0)
   sentAt         DateTime       @default(now())
+  jobs           MessageJob[]
 
   @@index([businessId, sentAt])
 }
+
+enum MessageJobStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+/// One outbound email/SMS to deliver. Processed by JobsService so sends survive restarts and scale past in-process workers.
+model MessageJob {
+  id            String          @id @default(cuid())
+  messageId     String
+  message       Message         @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  businessId    String
+  channel       MessageChannel
+  /// Email address or normalised phone digits.
+  toAddress     String
+  recipientName String          @default("")
+  subject       String?
+  /// Body with {{first_name}} / {{store}} already filled in.
+  body          String
+  status        MessageJobStatus @default(PENDING)
+  attempts      Int             @default(0)
+  lastError     String?
+  createdAt     DateTime        @default(now())
+  processedAt   DateTime?
+
+  @@index([status, createdAt])
+  @@index([messageId])
+  @@index([businessId, channel, status])
+}
+
+enum ExpenseCategory {
+  RENT
+  UTILITIES
+  SUPPLIES
+  MARKETING
+  SALARIES
+  TRANSPORT
+  OTHER
+}
+
+model Expense {
+  id         String          @id @default(cuid())
+  businessId String
+  business   Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  amount     Decimal         @db.Decimal(12, 2)
+  category   ExpenseCategory
+  note       String          @default("")
+  spentAt    DateTime
+  createdAt  DateTime        @default(now())
+
+  @@index([businessId, spentAt])
+}
+
 
 // ---------- analytics ----------
 

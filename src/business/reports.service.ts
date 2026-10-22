@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { lower, num, toOrder, toProduct } from "../common/serializers";
+import { ExpensesService } from "./expenses.service";
 import { PrismaService } from "../prisma/prisma.service";
 
 export const REPORT_DAYS = [7, 30, 90, 365] as const;
@@ -20,7 +21,7 @@ const inRange = (now: number, at: Date, fromDaysAgo: number, toDaysAgo: number) 
 /** Revenue counts paid orders only. Windows are measured back from now, so "30 days" is the last 720 hours. */
 @Injectable()
 export class ReportsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly expenses: ExpensesService) {}
 
   async overview(businessId: string) {
     const db = this.prisma.forBusiness(businessId);
@@ -134,6 +135,8 @@ export class ReportsService {
         LIMIT 8`,
     ]);
 
+    const expensesTotal = await this.expenses.totalBetween(businessId, start, new Date());
+
     return {
       days,
       revenue,
@@ -149,8 +152,11 @@ export class ReportsService {
       byPayment: group((o) => (o.paymentMethod ? lower(o.paymentMethod) : "unknown")).map((g) => ({ method: g.key, orders: g.orders, revenue: g.revenue })),
       topProducts: topProducts.map((r) => ({ name: r.name, qty: Number(r.qty), revenue: num(r.revenue) })),
       topCustomers: [...customers.values()].sort((a, b) => b.revenue - a.revenue).slice(0, 5),
+      expenses: expensesTotal,
+      profit: revenue - expensesTotal,
     };
   }
 }
+
 
 const PRODUCT_INCLUDE = { category: true, images: { orderBy: { position: "asc" } }, variants: { orderBy: { position: "asc" } } } satisfies Prisma.ProductInclude;

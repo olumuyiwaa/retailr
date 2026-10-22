@@ -6,6 +6,7 @@ import { AudienceQuery, CouponDto, CouponStatusDto, GroupDto, InviteDto, Profile
 import { GroupsService } from "./groups.service";
 import { MessagesService } from "./messages.service";
 import { ProfileService } from "./profile.service";
+import { ExpensesService } from "./expenses.service";
 import { TeamService } from "./team.service";
 
 @ApiTags("business")
@@ -16,7 +17,7 @@ import { TeamService } from "./team.service";
 export class BusinessController {
   constructor(
     private readonly coupons: CouponsService, private readonly groups: GroupsService, private readonly messages: MessagesService,
-    private readonly team: TeamService, private readonly profile: ProfileService,
+    private readonly team: TeamService, private readonly profile: ProfileService, private readonly expenses: ExpensesService,
   ) {}
 
   @Get("coupons") listCoupons(@CurrentUser() u: AuthContext) { return this.coupons.list(u.businessId!); }
@@ -33,6 +34,7 @@ export class BusinessController {
 
   @Get("messages/audience") audience(@CurrentUser() u: AuthContext, @Query() q: AudienceQuery) { return this.messages.preview(u.businessId!, q); }
   @Get("messages") listMessages(@CurrentUser() u: AuthContext) { return this.messages.list(u.businessId!); }
+  @Get("messages/sms-credits") smsCredits(@CurrentUser() u: AuthContext) { return this.messages.smsUsage(u.businessId!); }
   @Post("messages") sendMessage(@CurrentUser() u: AuthContext, @Body() d: SendMessageDto) { return this.messages.send(u.businessId!, d); }
 
   @Get("team") listTeam(@CurrentUser() u: AuthContext) { return this.team.list(u.businessId!); }

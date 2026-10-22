@@ -24,6 +24,7 @@ export class LimitsDto {
   @IsNumber() staff: number;
   @IsNumber() ordersPerMonth: number;
   @IsNumber() storageGb: number;
+  @IsOptional() @IsNumber() smsPerMonth?: number;
 }
 export class PlanDto {
   @IsString({ message: "Enter a plan name." }) @MaxLength(60) name: string;

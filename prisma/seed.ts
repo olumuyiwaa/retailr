@@ -11,25 +11,25 @@ const day = 86_400_000;
 const plans: Prisma.PlanCreateInput[] = [
   {
     id: "plan_basic", name: "Basic", description: "Free forever. Open a store and make your first sales.",
-    priceMonthly: 0, priceYearly: 0, transactionFeePct: 4, maxProducts: 25, maxStaff: 1, maxOrdersPerMonth: 30, maxStorageGb: 1,
+    priceMonthly: 0, priceYearly: 0, transactionFeePct: 4, maxProducts: 25, maxStaff: 1, maxOrdersPerMonth: 30, maxSmsPerMonth: 20, maxStorageGb: 1,
     features: ["Branded online storefront", "Up to 25 products", "30 orders / month", "Discount codes", "Order invoices & receipts", "Community support"],
     localPrices: { NGN: { monthly: 0, yearly: 0 }, GHS: { monthly: 0, yearly: 0 }, KES: { monthly: 0, yearly: 0 } },
   },
   {
     id: "plan_starter", name: "Starter", description: "Everything a new business needs to start selling online.",
-    priceMonthly: 3, priceYearly: 30, transactionFeePct: 3, maxProducts: 300, maxStaff: 2, maxOrdersPerMonth: 300, maxStorageGb: 3,
+    priceMonthly: 3, priceYearly: 30, transactionFeePct: 3, maxProducts: 300, maxStaff: 2, maxOrdersPerMonth: 300, maxSmsPerMonth: 50, maxStorageGb: 3,
     features: ["Everything in Basic", "Up to 300 products", "2 team members", "300 orders / month", "Basic sales reports", "Email support"],
     localPrices: { NGN: { monthly: 4500, yearly: 45000 }, GHS: { monthly: 45, yearly: 450 }, KES: { monthly: 450, yearly: 4500 } },
   },
   {
     id: "plan_growth", name: "Growth", description: "For growing shops that need more room and better insight.",
-    priceMonthly: 6, priceYearly: 60, transactionFeePct: 2, maxProducts: 1500, maxStaff: 5, maxOrdersPerMonth: 2000, maxStorageGb: 10, highlighted: true,
+    priceMonthly: 6, priceYearly: 60, transactionFeePct: 2, maxProducts: 1500, maxStaff: 5, maxOrdersPerMonth: 2000, maxSmsPerMonth: 200, maxStorageGb: 10, highlighted: true,
     features: ["Everything in Starter", "Up to 1,500 products", "5 team members", "2,000 orders / month", "Advanced analytics", "Priority support"],
     localPrices: { NGN: { monthly: 9500, yearly: 95000 }, GHS: { monthly: 95, yearly: 950 }, KES: { monthly: 950, yearly: 9500 } },
   },
   {
     id: "plan_scale", name: "Scale", description: "High-volume sellers with teams and custom needs.",
-    priceMonthly: 15, priceYearly: 150, transactionFeePct: 1, maxProducts: -1, maxStaff: 15, maxOrdersPerMonth: -1, maxStorageGb: 50,
+    priceMonthly: 15, priceYearly: 150, transactionFeePct: 1, maxProducts: -1, maxStaff: 15, maxOrdersPerMonth: -1, maxSmsPerMonth: -1, maxStorageGb: 50,
     features: ["Everything in Growth", "Unlimited products & orders", "15 team members", "Custom domain", "API access", "Dedicated account manager"],
     localPrices: { NGN: { monthly: 22000, yearly: 220000 }, GHS: { monthly: 220, yearly: 2200 }, KES: { monthly: 2200, yearly: 22000 } },
   },

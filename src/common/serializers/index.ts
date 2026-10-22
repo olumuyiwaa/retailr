@@ -24,7 +24,7 @@ export const toPlan = (p: Plan) => ({
   priceMonthly: num(p.priceMonthly),
   priceYearly: num(p.priceYearly),
   transactionFeePct: num(p.transactionFeePct),
-  limits: { products: p.maxProducts, staff: p.maxStaff, ordersPerMonth: p.maxOrdersPerMonth, storageGb: p.maxStorageGb },
+  limits: { products: p.maxProducts, staff: p.maxStaff, ordersPerMonth: p.maxOrdersPerMonth, storageGb: p.maxStorageGb, smsPerMonth: p.maxSmsPerMonth },
   features: p.features,
   themes: allowedThemes(p.themes),
   ...(p.highlighted ? { highlighted: true } : {}),

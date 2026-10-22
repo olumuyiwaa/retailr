@@ -16,12 +16,13 @@ export class BillingService {
     const db = this.prisma.forBusiness(businessId);
     const biz = await this.prisma.business.findUniqueOrThrow({ where: { id: businessId }, include: { plan: true } });
     const monthStart = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1));
-    const [sub, invoices, plans, products, staff, orders, bytes] = await Promise.all([
+    const [sub, invoices, plans, products, staff, orders, bytes, smsUsed] = await Promise.all([
       this.prisma.subscription.findUnique({ where: { businessId }, include: { planCoupon: { select: { code: true } } } }),
       db.invoice.findMany({ orderBy: { issuedAt: "desc" } }),
       this.prisma.plan.findMany({ where: { isActive: true }, orderBy: { priceMonthly: "asc" } }),
       Promise.all([db.product.count(), db.service.count()]).then(([a, b]) => a + b), db.teamMember.count(), db.order.count({ where: { placedAt: { gte: monthStart } } }),
       this.storage.usageBytes(businessId),
+      this.prisma.messageJob.count({ where: { businessId, channel: "SMS", status: { in: ["PENDING", "SENT"] }, createdAt: { gte: monthStart } } }),
     ]);
     const p = biz.plan;
     return {
@@ -34,6 +35,7 @@ export class BillingService {
         staff: { used: staff, limit: p.maxStaff },
         ordersThisMonth: { used: orders, limit: p.maxOrdersPerMonth },
         storageGb: { used: Math.round((bytes / GB) * 100) / 100, limit: p.maxStorageGb },
+        smsThisMonth: { used: smsUsed, limit: p.maxSmsPerMonth },
       },
       invoices: invoices.map(toInvoice),
       plans: plans.map(toPlan),
