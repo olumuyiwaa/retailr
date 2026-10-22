@@ -1,9 +1,10 @@
 // Seeds a complete demo business, "Scentora" (a perfume shop in Lagos): catalogue, customers, two months of orders, discount codes, groups,
-// a sent message and a three-person team. Safe to run again: it replaces the demo business and leaves everything else alone.
+// a sent message, a three-person team, bookable services and a batch of bookings.
+// Safe to run again: it replaces the demo business and leaves everything else alone.
 // Usage: npm run seed:demo   (run `npm run seed` first for the plans). Storefront: /s/scentora
 import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient, Prisma, OrderStatus, PaymentMethod, SalesChannel } from "@prisma/client";
+import { PrismaClient, Prisma, OrderStatus, PaymentMethod, SalesChannel, BookingStatus } from "@prisma/client";
 import * as argon2 from "argon2";
 
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }) });
@@ -53,6 +54,63 @@ const PRODUCTS: P[] = [
   { name: "The Discovery Set", cat: "Gift Sets", sku: "SC-G-001", color: "#d9c3a5", desc: "Six 5ml minis: one from each family, to find your signature.", sizes: [["6 x 5ml", 22000, 45]], specs: [["Contents", "6 x 5ml sprays"], ["Includes", "Gift box and card"]] },
   { name: "Her & Him Gift Box", cat: "Gift Sets", sku: "SC-G-002", color: "#c9a0a0", desc: "Lagos Nights and Iron & Cedar (50ml each) in a ribboned box.", sizes: [["2 x 50ml", 52000, 15]], specs: [["Contents", "2 x 50ml EDP"], ["Includes", "Gift box, ribbon and card"]] },
   { name: "Limited: Detty December", cat: "Unisex", sku: "SC-U-003", color: "#7ad1a8", desc: "A festive, sparkling citrus-spice blend, coming soon.", sizes: sz(19000, 30000, 47000, [0, 0, 0]), specs: [["Family", "Spicy citrus"]], status: "DRAFT" },
+];
+
+type SvcOpt = { name: string; price: number };
+type Svc = {
+  name: string; cat: string; desc: string; color: string;
+  price: number; durationMins: number; bookable: boolean;
+  maxConcurrent?: number; specs: [string, string][];
+  options?: SvcOpt[];
+};
+const SERVICES: Svc[] = [
+  {
+    name: "Fragrance Consultation", cat: "Unisex",
+    desc: "A one-on-one session with our in-house perfumer. We map your scent preferences and build a personalised fragrance wardrobe.",
+    color: "#e8d5c4", price: 15000, durationMins: 60, bookable: true, maxConcurrent: 2,
+    specs: [["Duration", "60 minutes"], ["Includes", "Scent profile report + 5ml sample"], ["Where", "Lagos Island boutique or video call"]],
+    options: [
+      { name: "In-store (60 min)", price: 15000 },
+      { name: "Video call (45 min)", price: 10000 },
+    ],
+  },
+  {
+    name: "Custom Blending Session", cat: "Unisex",
+    desc: "Design your own signature scent with our perfumer. You leave with a 30ml bottle of your creation.",
+    color: "#d4c5e8", price: 35000, durationMins: 90, bookable: true, maxConcurrent: 1,
+    specs: [["Duration", "90 minutes"], ["Includes", "30ml bespoke bottle + recipe card"], ["Where", "Lagos Island boutique"]],
+    options: [
+      { name: "Solo session (30ml)", price: 35000 },
+      { name: "Couples session (2 × 30ml)", price: 60000 },
+    ],
+  },
+  {
+    name: "Gift Wrapping & Personalisation", cat: "Gift Sets",
+    desc: "Premium wrapping, a handwritten card and optional monogramming for any purchase. Add it to any order.",
+    color: "#c5dce8", price: 2500, durationMins: undefined as unknown as number, bookable: false,
+    specs: [["Turnaround", "Same day in-store, +1 day for delivery"], ["Includes", "Branded box, ribbon, card"]],
+    options: [
+      { name: "Standard wrap + card", price: 2500 },
+      { name: "Premium box + monogram", price: 5000 },
+    ],
+  },
+  {
+    name: "Scent Layering Workshop", cat: "Unisex",
+    desc: "A small-group class (up to 6) where we teach the art of layering fragrances to create a signature combination.",
+    color: "#e8e4c5", price: 12000, durationMins: 120, bookable: true, maxConcurrent: 6,
+    specs: [["Duration", "2 hours"], ["Includes", "Materials, refreshments and a take-home sample"], ["Group size", "Up to 6 people"]],
+  },
+  {
+    name: "Corporate & Bulk Orders", cat: "Gift Sets",
+    desc: "Branded gift sets for events, weddings or corporate gifting. Price is per unit; minimum 10 units.",
+    color: "#c5e8d0", price: 18000, durationMins: undefined as unknown as number, bookable: false,
+    specs: [["Minimum", "10 units"], ["Lead time", "5–7 business days"], ["Includes", "Custom branding on packaging"]],
+    options: [
+      { name: "10–49 units", price: 18000 },
+      { name: "50–99 units", price: 16000 },
+      { name: "100+ units", price: 14000 },
+    ],
+  },
 ];
 
 const CUSTOMERS: [string, string, string, string][] = [
@@ -163,6 +221,73 @@ async function main() {
   for (const [id, s] of spent) await prisma.customer.update({ where: { id }, data: { ordersCount: s.n, totalSpent: D(s.t) } });
   await prisma.coupon.updateMany({ where: { businessId: biz.id, code: "WELCOME10" }, data: { usedCount: await prisma.order.count({ where: { businessId: biz.id, couponCode: "WELCOME10" } }) } });
 
+  // services
+  const services: { id: string; name: string; price: number; options: { id: string; name: string; price: number }[] }[] = [];
+  for (const [si, svc] of SERVICES.entries()) {
+    const created = await prisma.service.create({
+      data: {
+        businessId: biz.id,
+        categoryId: cats.get(svc.cat),
+        name: svc.name,
+        description: svc.desc,
+        price: D(svc.price),
+        durationMins: svc.durationMins ?? null,
+        bookable: svc.bookable,
+        maxConcurrent: svc.maxConcurrent ?? 1,
+        imageColor: svc.color,
+        status: "ACTIVE",
+        specs: svc.specs.map(([label, value]) => ({ label, value })),
+        images: {
+          create: [{ url: PHOTOS[(si * 2 + 3) % PHOTOS.length], position: 0 }],
+        },
+        options: svc.options?.length
+          ? { create: svc.options.map((o, pos) => ({ name: o.name, price: D(o.price), position: pos })) }
+          : undefined,
+      },
+      include: { options: true },
+    });
+    services.push({
+      id: created.id, name: created.name, price: svc.price,
+      options: created.options.map((o) => ({ id: o.id, name: o.name, price: Number(o.price ?? svc.price) })),
+    });
+  }
+
+  // bookings: ~30, spread over the past 45 days and the next 14
+  const bookableSvcs = services.filter((s) => SERVICES.find((d) => d.name === s.name)?.bookable);
+  const bookingStatuses: BookingStatus[] = ["CONFIRMED", "CONFIRMED", "CONFIRMED", "COMPLETED", "COMPLETED", "CANCELLED", "NO_SHOW"];
+  let bookingCount = 0;
+  for (let i = 0; i < 30; i++) {
+    const svc = pick(bookableSvcs);
+    const svcDef = SERVICES.find((d) => d.name === svc.name)!;
+    const opt = svc.options.length ? pick(svc.options) : null;
+    const price = opt ? opt.price : svc.price;
+    const durationMins = svcDef.durationMins;
+    // past bookings: 1-45 days ago. future: next 1-14 days
+    const isFuture = i < 8;
+    const offsetDays = isFuture ? -(1 + Math.floor(rnd() * 14)) : 1 + Math.floor(rnd() * 44);
+    const hour = 9 + Math.floor(rnd() * 8); // 09:00–16:00
+    const startsAt = new Date(now + offsetDays * DAY * (isFuture ? -1 : 1));
+    startsAt.setHours(hour, 0, 0, 0);
+    const endsAt = new Date(startsAt.getTime() + durationMins * 60_000);
+    const c = pick(customers);
+    const status: BookingStatus = isFuture ? "CONFIRMED" : pick(bookingStatuses);
+    await prisma.booking.create({
+      data: {
+        businessId: biz.id,
+        serviceId: svc.id,
+        customerId: c.id,
+        serviceName: svc.name,
+        variantName: opt?.name ?? null,
+        price: D(price),
+        startsAt, endsAt, status,
+        customerName: c.name, customerEmail: c.email, customerPhone: c.phone,
+        source: rnd() < 0.7 ? "store" : "admin",
+      },
+    });
+    if (status === "COMPLETED") await prisma.service.update({ where: { id: svc.id }, data: { sold: { increment: 1 } } });
+    bookingCount++;
+  }
+
   // groups and one sent message
   const vip = await prisma.customerGroup.create({ data: { businessId: biz.id, name: "VIP buyers", description: "Spent over ₦100,000", kind: "AUTO", ruleType: "SPENT_OVER", ruleValue: D(100000) } });
   await prisma.customerGroup.create({ data: { businessId: biz.id, name: "Lapsed (60 days)", description: "No order in two months", kind: "AUTO", ruleType: "NO_ORDER_WITHIN_DAYS", ruleValue: D(60) } });
@@ -175,7 +300,7 @@ async function main() {
     },
   });
 
-  console.log(`Seeded "${biz.name}": ${products.length} products, ${customers.length} customers, ${count} orders.`);
+  console.log(`Seeded "${biz.name}": ${products.length} products, ${services.length} services, ${customers.length} customers, ${count} orders, ${bookingCount} bookings.`);
   console.log(`Storefront: /s/${SLUG}`);
   console.log(`Logins (password "${PASSWORD}"): demo@scentora.example (owner), manager@scentora.example, staff@scentora.example`);
   void vip;
