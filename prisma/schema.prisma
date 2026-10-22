@@ -149,24 +149,24 @@ enum TeamStatus {
 // ---------- identity ----------
 
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique // stored lower-case
-  name         String
-  passwordHash String
-  role         Role
+  id                String             @id @default(cuid())
+  email             String             @unique // stored lower-case
+  name              String
+  passwordHash      String
+  role              Role
   /// Set for BUSINESS_ADMIN. One login belongs to one business for now (see README, "Later").
-  businessId   String?
-  business     Business? @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  businessId        String?
+  business          Business?          @relation(fields: [businessId], references: [id], onDelete: Cascade)
   /// Set once the person has proved they own the address (verification link, reset link or accepted invite).
-  emailVerifiedAt DateTime?
-  teamMember   TeamMember?
-  authTokens   AuthToken[]
-  calendarFeeds CalendarFeed[]
-  refreshTokens RefreshToken[]
-  notifications Notification[]
+  emailVerifiedAt   DateTime?
+  teamMember        TeamMember?
+  authTokens        AuthToken[]
+  calendarFeeds     CalendarFeed[]
+  refreshTokens     RefreshToken[]
+  notifications     Notification[]
   pushSubscriptions PushSubscription[]
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 
   @@index([businessId])
 }
@@ -191,13 +191,13 @@ model AuthToken {
 }
 
 model RefreshToken {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tokenHash String   @unique
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
   expiresAt DateTime
   revokedAt DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   @@index([userId])
 }
@@ -220,7 +220,7 @@ model Plan {
   maxSmsPerMonth    Int      @default(50)
   features          String[]
   /// Storefront theme ids this plan may use ("classic" is always allowed). Set by the platform admin.
-  themes            String[] @default(["classic", "showcase", "atelier", "market"])
+  themes            String[] @default(["classic", "showcase", "atelier", "market", "shop"])
   highlighted       Boolean  @default(false)
   isActive          Boolean  @default(true)
   /// { "NGN": { "monthly": 9000, "yearly": 90000 }, ... } hand-set local prices
@@ -235,41 +235,41 @@ model Plan {
 }
 
 model Business {
-  id          String         @id @default(cuid())
-  name        String
-  slug        String         @unique // storefront lives at /s/<slug>
-  category    String // business type, e.g. "Fashion & Textiles"
-  ownerName   String
-  ownerEmail  String
-  phone       String         @default("")
-  country     String
-  city        String
-  brandColor  String         @default("#465fff")
-  theme       String? // storefront theme id, null = default
-  logoUrl     String?
-  currency    Currency       @default(NGN)
+  id                 String         @id @default(cuid())
+  name               String
+  slug               String         @unique // storefront lives at /s/<slug>
+  category           String // business type, e.g. "Fashion & Textiles"
+  ownerName          String
+  ownerEmail         String
+  phone              String         @default("")
+  country            String
+  city               String
+  brandColor         String         @default("#465fff")
+  theme              String? // storefront theme id, null = default
+  logoUrl            String?
+  currency           Currency       @default(NGN)
   /// How shoppers may pay at checkout, chosen by the owner: any of "cod", "bank", "card"
-  paymentMethods String[]    @default(["cod", "bank", "card"])
+  paymentMethods     String[]       @default(["cod", "bank", "card"])
   /// Shown to shoppers who choose bank transfer (account name, number, bank)
-  bankDetails String         @default("")
-  description String         @default("")
-  status      BusinessStatus @default(PENDING)
+  bankDetails        String         @default("")
+  description        String         @default("")
+  status             BusinessStatus @default(PENDING)
   /// Why a SUSPENDED business was suspended: "ADMIN" (the platform did it) or "NON_PAYMENT" (billing did; paying lifts it).
-  suspensionReason String?
-  planId      String
-  plan        Plan           @relation(fields: [planId], references: [id])
+  suspensionReason   String?
+  planId             String
+  plan               Plan           @relation(fields: [planId], references: [id])
   /// IANA zone the business's opening hours are in, e.g. "Africa/Lagos".
-  timezone    String         @default("Africa/Lagos")
+  timezone           String         @default("Africa/Lagos")
   /// { mon: [{ start: "09:00", end: "17:00" }], ... }; null = Monday to Friday 09:00-17:00.
-  bookingHours Json?
+  bookingHours       Json?
   /// Shortest notice a customer can book with, in hours.
-  bookingNoticeHours Int     @default(2)
+  bookingNoticeHours Int            @default(2)
   /// true = bookings are confirmed straight away; false = the team confirms each one.
-  bookingAutoConfirm Boolean @default(true)
+  bookingAutoConfirm Boolean        @default(true)
   /// Last used order number for "#AD1180"-style numbering; increment atomically inside the order transaction.
-  orderSeq    Int            @default(999)
-  createdAt   DateTime       @default(now()) // "joinedAt" in the API
-  updatedAt   DateTime       @updatedAt
+  orderSeq           Int            @default(999)
+  createdAt          DateTime       @default(now()) // "joinedAt" in the API
+  updatedAt          DateTime       @updatedAt
 
   users         User[]
   team          TeamMember[]
@@ -294,39 +294,39 @@ model Business {
 }
 
 model TeamMember {
-  id         String     @id @default(cuid())
-  businessId String
-  business   Business   @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  userId     String?    @unique // set once the invite is accepted
-  user       User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
-  name       String
-  email      String
-  role       TeamRole
-  status     TeamStatus @default(INVITED)
-  inviteTokenHash String? @unique
+  id              String     @id @default(cuid())
+  businessId      String
+  business        Business   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  userId          String?    @unique // set once the invite is accepted
+  user            User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+  name            String
+  email           String
+  role            TeamRole
+  status          TeamStatus @default(INVITED)
+  inviteTokenHash String?    @unique
   inviteExpiresAt DateTime?
-  createdAt  DateTime   @default(now())
+  createdAt       DateTime   @default(now())
 
   @@unique([businessId, email])
 }
 
 model Subscription {
-  id               String             @id @default(cuid())
-  businessId       String             @unique
-  business         Business           @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  planId           String
-  plan             Plan               @relation(fields: [planId], references: [id])
-  status           SubscriptionStatus
-  cycle            BillingCycle
+  id                     String             @id @default(cuid())
+  businessId             String             @unique
+  business               Business           @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  planId                 String
+  plan                   Plan               @relation(fields: [planId], references: [id])
+  status                 SubscriptionStatus
+  cycle                  BillingCycle
   /// What the business pays each period in USD, already net of any platform discount.
-  amount           Decimal            @db.Decimal(12, 2)
-  currentPeriodEnd DateTime
-  trialEndsAt      DateTime?
-  cancelledAt      DateTime?
+  amount                 Decimal            @db.Decimal(12, 2)
+  currentPeriodEnd       DateTime
+  trialEndsAt            DateTime?
+  cancelledAt            DateTime?
   /// Platform discount in use, and what it takes off each period (USD).
-  planCouponId     String?
-  planCoupon       PlanCoupon?        @relation(fields: [planCouponId], references: [id], onDelete: SetNull)
-  discount         Decimal?           @db.Decimal(12, 2)
+  planCouponId           String?
+  planCoupon             PlanCoupon?        @relation(fields: [planCouponId], references: [id], onDelete: SetNull)
+  discount               Decimal?           @db.Decimal(12, 2)
   /// Payment-provider references (Paystack / Flutterwave / Stripe)
   providerCustomerId     String?
   providerSubscriptionId String?
@@ -335,37 +335,37 @@ model Subscription {
   /// Which provider the card token belongs to ("paystack", "flutterwave"); renewals are charged through it.
   provider               String?
   trialReminderSentAt    DateTime?
-  createdAt        DateTime           @default(now()) // "startedAt" in the API
-  updatedAt        DateTime           @updatedAt
+  createdAt              DateTime           @default(now()) // "startedAt" in the API
+  updatedAt              DateTime           @updatedAt
 
   @@index([status])
 }
 
 model Invoice {
-  id          String        @id @default(cuid())
-  businessId  String
-  business    Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  planId      String
-  plan        Plan          @relation(fields: [planId], references: [id])
-  description String
-  amount      Decimal       @db.Decimal(12, 2) // USD
-  status      InvoiceStatus
+  id                String        @id @default(cuid())
+  businessId        String
+  business          Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  planId            String
+  plan              Plan          @relation(fields: [planId], references: [id])
+  description       String
+  amount            Decimal       @db.Decimal(12, 2) // USD
+  status            InvoiceStatus
   /// Unique per payment attempt: what the provider calls the transaction. Makes webhooks and retries idempotent.
-  providerReference String? @unique
+  providerReference String?       @unique
   /// Which provider this payment went through.
-  provider    String?
+  provider          String?
   /// "CHECKOUT" (the business paid to start or change a plan) or "RENEWAL" (charged automatically at period end).
-  kind        String        @default("CHECKOUT")
-  attempt     Int           @default(1)
+  kind              String        @default("CHECKOUT")
+  attempt           Int           @default(1)
   /// What the payment buys: applied to the subscription when it succeeds.
-  cycle       BillingCycle?
-  planCouponId String?
-  discount    Decimal?      @db.Decimal(12, 2)
+  cycle             BillingCycle?
+  planCouponId      String?
+  discount          Decimal?      @db.Decimal(12, 2)
   /// What was actually charged, in the business's currency (amount above is the USD accounting value).
-  chargeAmount   Decimal?   @db.Decimal(12, 2)
-  chargeCurrency String?
-  issuedAt    DateTime      @default(now())
-  paidAt      DateTime?
+  chargeAmount      Decimal?      @db.Decimal(12, 2)
+  chargeCurrency    String?
+  issuedAt          DateTime      @default(now())
+  paidAt            DateTime?
 
   @@index([businessId, issuedAt])
   @@index([status])
@@ -417,12 +417,12 @@ model PlanCouponRedemption {
 // ---------- catalogue ----------
 
 model Category {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   businessId String
-  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  business   Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
   name       String
   imageUrl   String?
-  createdAt  DateTime @default(now())
+  createdAt  DateTime  @default(now())
   products   Product[]
   services   Service[]
 
@@ -451,9 +451,9 @@ model Product {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
-  images      ProductImage[]
-  variants    ProductVariant[]
-  orderItems  OrderItem[]
+  images     ProductImage[]
+  variants   ProductVariant[]
+  orderItems OrderItem[]
 
   @@index([businessId, status])
   @@index([businessId, categoryId])
@@ -484,10 +484,10 @@ model Service {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
-  images        ServiceImage[]
-  options       ServiceOption[]
-  orderItems    OrderItem[]
-  bookings      Booking[]
+  images     ServiceImage[]
+  options    ServiceOption[]
+  orderItems OrderItem[]
+  bookings   Booking[]
 
   @@index([businessId, status])
   @@index([businessId, categoryId])
@@ -505,13 +505,13 @@ model ServiceImage {
 
 /// A priced choice such as "Short hair" or "Long hair".
 model ServiceOption {
-  id         String   @id @default(cuid())
+  id         String      @id @default(cuid())
   serviceId  String
-  service    Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  service    Service     @relation(fields: [serviceId], references: [id], onDelete: Cascade)
   name       String
   /// Overrides the service price when set.
-  price      Decimal? @db.Decimal(12, 2)
-  position   Int      @default(0)
+  price      Decimal?    @db.Decimal(12, 2)
+  position   Int         @default(0)
   orderItems OrderItem[]
 
   @@unique([serviceId, name])
@@ -519,28 +519,28 @@ model ServiceOption {
 
 /// A time slot a customer reserved for a bookable service. Name and price are copied so history survives edits and deletes.
 model Booking {
-  id          String        @id @default(cuid())
-  businessId  String
-  business    Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  serviceId   String?
-  service     Service?      @relation(fields: [serviceId], references: [id], onDelete: SetNull)
-  customerId  String?
-  customer    Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  serviceName String
-  variantName String?
-  price       Decimal       @db.Decimal(12, 2)
-  startsAt    DateTime
-  endsAt      DateTime
-  status      BookingStatus @default(CONFIRMED)
+  id            String        @id @default(cuid())
+  businessId    String
+  business      Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  serviceId     String?
+  service       Service?      @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  customerId    String?
+  customer      Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  serviceName   String
+  variantName   String?
+  price         Decimal       @db.Decimal(12, 2)
+  startsAt      DateTime
+  endsAt        DateTime
+  status        BookingStatus @default(CONFIRMED)
   customerName  String
   customerEmail String?
   customerPhone String?
-  notes       String?
+  notes         String?
   /// "store" (customer booked online) or "admin" (the team booked it)
-  source      String        @default("store")
-  publicToken String        @unique @default(cuid())
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  source        String        @default("store")
+  publicToken   String        @unique @default(cuid())
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 
   @@index([businessId, startsAt])
   @@index([serviceId, startsAt])
@@ -574,14 +574,14 @@ model ProductImage {
 }
 
 model ProductVariant {
-  id        String  @id @default(cuid())
-  productId String
-  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-  name      String // "Large / Red"
+  id         String      @id @default(cuid())
+  productId  String
+  product    Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  name       String // "Large / Red"
   /// Overrides the product price when set.
-  price     Decimal? @db.Decimal(12, 2)
-  stock     Int     @default(0)
-  position  Int     @default(0)
+  price      Decimal?    @db.Decimal(12, 2)
+  stock      Int         @default(0)
+  position   Int         @default(0)
   orderItems OrderItem[]
 
   @@unique([productId, name])
@@ -590,21 +590,21 @@ model ProductVariant {
 // ---------- customers ----------
 
 model Customer {
-  id         String   @id @default(cuid())
-  businessId String
-  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  name       String
+  id          String   @id @default(cuid())
+  businessId  String
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  name        String
   /// Checkout matches or creates the customer by lower-cased email. Null for walk-ins.
-  email      String?
-  phone      String   @default("")
-  city       String   @default("")
+  email       String?
+  phone       String   @default("")
+  city        String   @default("")
   /// Denormalised; recompute from paid orders whenever an order's payment or status changes.
-  ordersCount Int     @default(0)
-  totalSpent  Decimal @default(0) @db.Decimal(12, 2)
-  createdAt  DateTime @default(now())
+  ordersCount Int      @default(0)
+  totalSpent  Decimal  @default(0) @db.Decimal(12, 2)
+  createdAt   DateTime @default(now())
 
   orders       Order[]
-  bookings    Booking[]
+  bookings     Booking[]
   groupMembers CustomerGroupMember[]
 
   @@unique([businessId, email])
@@ -612,16 +612,16 @@ model Customer {
 }
 
 model CustomerGroup {
-  id          String        @id @default(cuid())
+  id          String         @id @default(cuid())
   businessId  String
-  business    Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  business    Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
   name        String
   description String?
   kind        GroupKind
   /// AUTO groups only: members are computed from the rule, never stored.
   ruleType    GroupRuleType?
-  ruleValue   Decimal?      @db.Decimal(12, 2)
-  createdAt   DateTime      @default(now())
+  ruleValue   Decimal?       @db.Decimal(12, 2)
+  createdAt   DateTime       @default(now())
 
   members CustomerGroupMember[] // MANUAL groups only
 
@@ -640,33 +640,33 @@ model CustomerGroupMember {
 // ---------- orders ----------
 
 model Order {
-  id            String        @id @default(cuid())
-  businessId    String
-  business      Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  id              String         @id @default(cuid())
+  businessId      String
+  business        Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
   /// "#AD1180": two letters of the slug plus Business.orderSeq. Unique per business.
-  number        String
+  number          String
   /// Null for walk-in sales recorded without a customer.
-  customerId    String?
-  customer      Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  customerId      String?
+  customer        Customer?      @relation(fields: [customerId], references: [id], onDelete: SetNull)
   /// Snapshot of what the shopper typed at checkout.
-  customerName  String
-  customerEmail String?
-  customerPhone String?
+  customerName    String
+  customerEmail   String?
+  customerPhone   String?
   shippingAddress String?
-  notes         String?
-  channel       SalesChannel  @default(ONLINE)
-  paymentMethod PaymentMethod?
-  status        OrderStatus   @default(PENDING)
-  paymentStatus PaymentStatus @default(UNPAID)
-  subtotal      Decimal       @db.Decimal(12, 2)
-  discount      Decimal       @default(0) @db.Decimal(12, 2)
+  notes           String?
+  channel         SalesChannel   @default(ONLINE)
+  paymentMethod   PaymentMethod?
+  status          OrderStatus    @default(PENDING)
+  paymentStatus   PaymentStatus  @default(UNPAID)
+  subtotal        Decimal        @db.Decimal(12, 2)
+  discount        Decimal        @default(0) @db.Decimal(12, 2)
   /// subtotal - discount
-  total         Decimal       @db.Decimal(12, 2)
-  couponCode    String?
-  receiptSentAt DateTime?
+  total           Decimal        @db.Decimal(12, 2)
+  couponCode      String?
+  receiptSentAt   DateTime?
   /// Unguessable token for the public confirmation/invoice link (the mock uses the order id, which is guessable).
-  publicToken   String        @unique @default(cuid())
-  placedAt      DateTime      @default(now())
+  publicToken     String         @unique @default(cuid())
+  placedAt        DateTime       @default(now())
 
   items OrderItem[]
 
@@ -742,21 +742,21 @@ enum MessageJobStatus {
 
 /// One outbound email/SMS to deliver. Processed by JobsService so sends survive restarts and scale past in-process workers.
 model MessageJob {
-  id            String          @id @default(cuid())
+  id            String           @id @default(cuid())
   messageId     String
-  message       Message         @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  message       Message          @relation(fields: [messageId], references: [id], onDelete: Cascade)
   businessId    String
   channel       MessageChannel
   /// Email address or normalised phone digits.
   toAddress     String
-  recipientName String          @default("")
+  recipientName String           @default("")
   subject       String?
   /// Body with {{first_name}} / {{store}} already filled in.
   body          String
   status        MessageJobStatus @default(PENDING)
-  attempts      Int             @default(0)
+  attempts      Int              @default(0)
   lastError     String?
-  createdAt     DateTime        @default(now())
+  createdAt     DateTime         @default(now())
   processedAt   DateTime?
 
   @@index([status, createdAt])
@@ -787,33 +787,32 @@ model Expense {
   @@index([businessId, spentAt])
 }
 
-
 // ---------- analytics ----------
 
 /// Daily roll-up. scope = a businessId for a storefront, or "platform" for the marketing site.
 /// Written by POST /track (batched or via a queue); read by the analytics endpoints.
 model AnalyticsDay {
-  id          String   @id @default(cuid())
-  scope       String
-  date        DateTime @db.Date
-  visitors    Int      @default(0) // unique per day
-  sessions    Int      @default(0) // visits
-  pageViews   Int      @default(0)
-  productViews Int     @default(0)
-  addToCart   Int      @default(0)
-  checkouts   Int      @default(0)
+  id               String   @id @default(cuid())
+  scope            String
+  date             DateTime @db.Date
+  visitors         Int      @default(0) // unique per day
+  sessions         Int      @default(0) // visits
+  pageViews        Int      @default(0)
+  productViews     Int      @default(0)
+  addToCart        Int      @default(0)
+  checkouts        Int      @default(0)
   /// Distinct sessions that reached each funnel step (the three counters above count events)
-  productSessions  Int @default(0)
-  cartSessions     Int @default(0)
-  checkoutSessions Int @default(0)
+  productSessions  Int      @default(0)
+  cartSessions     Int      @default(0)
+  checkoutSessions Int      @default(0)
   /// Sessions that placed an online order (the storefront sends an "order" event once the order goes through)
-  orderSessions    Int @default(0)
+  orderSessions    Int      @default(0)
   /// { "whatsapp": 12, "direct": 40, ... } and the same shape for the rest
-  sources     Json     @default("{}")
-  devices     Json     @default("{}")
-  countries   Json     @default("{}")
-  pages       Json     @default("{}")
-  products    Json     @default("{}") // productId -> views
+  sources          Json     @default("{}")
+  devices          Json     @default("{}")
+  countries        Json     @default("{}")
+  pages            Json     @default("{}")
+  products         Json     @default("{}") // productId -> views
 
   @@unique([scope, date])
 }

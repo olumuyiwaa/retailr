@@ -33,7 +33,7 @@ describe("Theme gating by plan", () => {
     try {
       expect((await api().get(`/api/v1/store/${slug}`).expect(200)).body.theme).toBeUndefined();
     } finally {
-      await setThemes("plan_growth", ["classic", "showcase", "atelier", "market"]);
+      await setThemes("plan_growth", ["classic", "showcase", "atelier", "market", "shop"]);
     }
   });
 

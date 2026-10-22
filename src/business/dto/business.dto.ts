@@ -1,7 +1,7 @@
 import { Type } from "class-transformer";
 import { ArrayMinSize, ArrayUnique, IsArray, IsBoolean, IsDefined, IsEmail, IsIn, IsInt, IsNumber, IsObject, IsOptional, IsString, MaxLength, Min, ValidateIf, ValidateNested } from "class-validator";
 
-export const THEME_IDS = ["classic", "showcase", "atelier", "market"] as const;
+export const THEME_IDS = ["classic", "showcase", "atelier", "market", "shop"] as const;
 
 export class CouponDto {
   @IsString({ message: "Use 3–20 letters, numbers or dashes for the code." }) code: string;
