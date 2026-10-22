@@ -44,4 +44,16 @@ export class BusinessController {
 
   @MinRole("STAFF") @Get("profile") getProfile(@CurrentUser() u: AuthContext) { return this.profile.get(u.businessId!); }
   @MinRole("OWNER") @Patch("profile") updateProfile(@CurrentUser() u: AuthContext, @Body() d: ProfileDto) { return this.profile.update(u.businessId!, d); }
+  @Get("expenses") listExpenses(@CurrentUser() u: AuthContext, @Query() q: { from?: string; to?: string }) {
+    return this.expenses.list(u.businessId!, q);
+  }
+  @Post("expenses") createExpense(
+    @CurrentUser() u: AuthContext,
+    @Body() d: { amount: number; category: string; note?: string; spentAt: string },
+  ) {
+    return this.expenses.create(u.businessId!, d);
+  }
+  @HttpCode(204) @Delete("expenses/:id") async deleteExpense(@CurrentUser() u: AuthContext, @Param("id") id: string) {
+    await this.expenses.remove(u.businessId!, id);
+  }
 }
