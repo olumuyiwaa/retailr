@@ -5,10 +5,27 @@ import { PrismaService } from "../prisma/prisma.service";
 const CATEGORIES = ["rent", "utilities", "supplies", "marketing", "salaries", "transport", "other"] as const;
 export type ExpenseCategory = (typeof CATEGORIES)[number];
 
-const toExpense = (e: { id: string; businessId: string; amount: { toNumber?: () => number } | number; category: string; note: string; spentAt: Date; createdAt: Date }) => ({
+type ExpenseCategoryDb =
+  | "RENT"
+  | "UTILITIES"
+  | "SUPPLIES"
+  | "MARKETING"
+  | "SALARIES"
+  | "TRANSPORT"
+  | "OTHER";
+
+const toExpense = (e: {
+  id: string;
+  businessId: string;
+  amount: { toString(): string } | number;
+  category: string;
+  note: string;
+  spentAt: Date;
+  createdAt: Date;
+}) => ({
   id: e.id,
   businessId: e.businessId,
-  amount: typeof e.amount === "object" && e.amount && "toNumber" in e.amount ? Number(e.amount.toString()) : Number(e.amount),
+  amount: Number(e.amount.toString()),
   category: e.category.toLowerCase() as ExpenseCategory,
   note: e.note,
   spentAt: e.spentAt.toISOString(),
@@ -41,8 +58,9 @@ export class ExpensesService {
     if (Number.isNaN(spentAt.getTime())) throw AppError.badRequest("Enter a valid date.");
     const row = await this.prisma.forBusiness(businessId).expense.create({
       data: {
+        businessId,
         amount: input.amount,
-        category: category.toUpperCase() as never,
+        category: category.toUpperCase() as ExpenseCategoryDb,
         note: (input.note ?? "").trim().slice(0, 500),
         spentAt,
       },
@@ -55,7 +73,7 @@ export class ExpensesService {
     if (!r.count) throw AppError.notFound("Expense not found.");
   }
 
-  /** Sum of expenses in a window (inclusive of from, exclusive-ish via caller). */
+  /** Sum of expenses in a window. */
   async totalBetween(businessId: string, from: Date, to: Date) {
     const agg = await this.prisma.forBusiness(businessId).expense.aggregate({
       where: { spentAt: { gte: from, lt: to } },
