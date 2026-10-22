@@ -161,6 +161,7 @@ model User {
   emailVerifiedAt DateTime?
   teamMember   TeamMember?
   authTokens   AuthToken[]
+  calendarFeeds CalendarFeed[]
   refreshTokens RefreshToken[]
   notifications Notification[]
   pushSubscriptions PushSubscription[]
@@ -275,6 +276,7 @@ model Business {
   customers     Customer[]
   orders        Order[]
   bookings      Booking[]
+  calendarFeeds CalendarFeed[]
   coupons       Coupon[]
   groups        CustomerGroup[]
   messages      Message[]
@@ -486,6 +488,23 @@ model Booking {
 
   @@index([businessId, startsAt])
   @@index([productId, startsAt])
+}
+
+/// A private link (iCalendar) that Google, Apple or Outlook calendar can subscribe to. The link is the credential, so only its hash is stored.
+model CalendarFeed {
+  id             String    @id @default(cuid())
+  businessId     String
+  business       Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  /// Who made it. The link stops working when this person leaves the team.
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label          String?
+  tokenHash      String    @unique
+  lastAccessedAt DateTime?
+  revokedAt      DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([businessId, userId])
 }
 
 model ProductImage {
