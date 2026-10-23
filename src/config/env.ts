@@ -51,6 +51,10 @@ export class Env {
   /** The secret hash you set under Flutterwave → Settings → Webhooks; it comes back in the `verif-hash` header. */
   @IsOptional() @IsString() FLUTTERWAVE_SECRET_HASH?: string;
   @IsOptional() @IsString() FLUTTERWAVE_BASE_URL?: string;
+  /** Optional. When set, rate-limit counters are shared through Redis so every API instance enforces the same limits. Without it each instance counts on its own (fine for one instance). */
+  @IsOptional() @IsString() REDIS_URL?: string;
+  /** How long CDNs and browsers may reuse the public storefront listings (store, products, services, categories). 0 turns caching off. */
+  @IsInt() @Min(0) STORE_CACHE_SECONDS: number = 60;
   /** "false" turns the background jobs (renewals, trial expiry, cleanup) off, e.g. on a second web instance. */
   @IsIn(["true", "false"]) JOBS_ENABLED: string = "true";
   /** Days a late subscription stays online (retrying the card each day) before the store is suspended. */

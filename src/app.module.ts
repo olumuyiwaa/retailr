@@ -2,6 +2,8 @@ import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { APP_FILTER, APP_GUARD } from "@nestjs/core";
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
+import { ThrottlerStorageRedisService } from "@nest-lab/throttler-storage-redis";
+import Redis from "ioredis";
 import { validateEnv } from "./config/env";
 import { AllExceptionsFilter } from "./common/filters/all-exceptions.filter";
 import { JwtAuthGuard } from "./common/guards/jwt-auth.guard";
@@ -30,7 +32,13 @@ import { HealthController } from "./health/health.controller";
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
-    ThrottlerModule.forRoot([{ name: "default", ttl: 60_000, limit: () => Number(process.env.RATE_LIMIT ?? 120) }]),
+    // counters live in Redis when REDIS_URL is set, so several API instances share one limit; otherwise each keeps its own in memory
+    ThrottlerModule.forRootAsync({
+      useFactory: () => ({
+        throttlers: [{ name: "default", ttl: 60_000, limit: () => Number(process.env.RATE_LIMIT ?? 120) }],
+        ...(process.env.REDIS_URL ? { storage: new ThrottlerStorageRedisService(new Redis(process.env.REDIS_URL, { maxRetriesPerRequest: 2 })) } : {}),
+      }),
+    }),
     PrismaModule,
     MailModule,
     SmsModule,

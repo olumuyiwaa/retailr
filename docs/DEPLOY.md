@@ -37,6 +37,17 @@ One container (the `Dockerfile`), one PostgreSQL database. Everything else is co
 
 They run inside the API process, hourly, and are safe on several instances at once. To run them on one instance only, set `JOBS_ENABLED=false` on the others. `DUNNING_GRACE_DAYS` (default 7) is how long a store stays open after a failed renewal.
 
+## Scaling
+
+One instance is fine to start. Before a traffic spike, or once you run several instances:
+
+- **Cache the storefront.** `GET /store/:slug`, `/products`, `/services` and `/categories` send `Cache-Control: public, s-maxage=60, stale-while-revalidate=300` (`STORE_CACHE_SECONDS`, `0` turns it off). Put a CDN (Cloudflare, Netlify edge, CloudFront) in front of the API so most shopper reads never reach Node or Postgres. A listing can be up to a minute stale; checkout re-checks stock and prices, so it never oversells. Order and booking pages are `no-store`.
+- **Redis for rate limits.** Set `REDIS_URL` and every instance shares one set of counters; without it each instance counts alone, so the real limit is the limit times the number of instances. Redis is optional and nothing else needs it yet.
+- **Database connections.** Total connections = instances × `DB_POOL_MAX`. Put PgBouncer (or your host's pooler) in front, and keep that total under Postgres's `max_connections`.
+- **Background jobs on one instance.** Set `JOBS_ENABLED=false` on all but one.
+- **Writes on one shop are serial.** Orders, bookings and sales take a per-business Postgres lock so stock and slots stay correct; a single shop's checkout throughput is bounded by it, other shops are unaffected.
+- **Load test first.** Try k6 against `/store/:slug/products` (through the CDN and directly) and the checkout route, and read the numbers before promising a figure.
+
 ## Operating notes
 
 - **Behind a proxy/load balancer:** terminate TLS there and set `TRUST_PROXY` to the number of proxies in front of the API (usually 1). Without it every visitor looks like the proxy's address, so rate limits and analytics are shared by everyone. Don't set it when the API is directly exposed: clients could then forge their address.
