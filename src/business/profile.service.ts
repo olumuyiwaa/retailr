@@ -1,6 +1,8 @@
 import { Injectable } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
 import { AppError } from "../common/errors";
 import { allowedThemes, num, toBusiness } from "../common/serializers";
+import { cardAvailable, completeBankAccount } from "../common/payment-methods";
 import { PrismaService } from "../prisma/prisma.service";
 import { StorageService } from "../storage/storage.service";
 import { ProfileDto } from "./dto/business.dto";
@@ -35,8 +37,25 @@ export class ProfileService {
       data.brandColor = dto.brandColor.toLowerCase();
     }
     if (dto.currency !== undefined) data.currency = dto.currency;
-    if (dto.paymentMethods !== undefined) data.paymentMethods = dto.paymentMethods;
-    if (dto.bankDetails !== undefined) data.bankDetails = dto.bankDetails.trim();
+    if (dto.paymentMethods !== undefined || dto.bankAccount !== undefined) {
+      const current = await this.prisma.business.findUniqueOrThrow({ where: { id: businessId }, select: { paymentMethods: true, bankAccount: true } });
+      let account: unknown = current.bankAccount;
+      if (dto.bankAccount !== undefined) {
+        if (dto.bankAccount === null) account = null;
+        else {
+          const clean = completeBankAccount(dto.bankAccount);
+          if (!clean) throw AppError.badRequest("Enter your bank name, account number and account name.", "BANK_DETAILS_INCOMPLETE");
+          if (!/^[A-Za-z0-9][A-Za-z0-9 -]{2,32}[A-Za-z0-9]$/.test(clean.accountNumber)) throw AppError.badRequest("Enter a valid account number.", "BANK_ACCOUNT_NUMBER_INVALID");
+          if (clean.swiftCode && !/^[A-Za-z0-9]{8,11}$/.test(clean.swiftCode)) throw AppError.badRequest("A SWIFT/BIC code has 8 or 11 letters and numbers.", "BANK_SWIFT_INVALID");
+          account = clean;
+        }
+        data.bankAccount = account === null ? Prisma.DbNull : account;
+      }
+      const methods = dto.paymentMethods ?? current.paymentMethods;
+      if (dto.paymentMethods?.includes("card") && !cardAvailable()) throw AppError.badRequest("Card payments aren't available yet. Choose pay on delivery or bank transfer.", "CARD_UNAVAILABLE");
+      if (methods.includes("bank") && !completeBankAccount(account)) throw AppError.badRequest("Add your bank name, account number and account name before offering bank transfer.", "BANK_DETAILS_REQUIRED");
+      if (dto.paymentMethods !== undefined) data.paymentMethods = dto.paymentMethods;
+    }
     if (dto.theme !== undefined) {
       if (dto.theme !== null) {
         const plan = await this.prisma.plan.findFirstOrThrow({ where: { businesses: { some: { id: businessId } } } });

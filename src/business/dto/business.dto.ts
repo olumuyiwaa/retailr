@@ -47,6 +47,17 @@ export class InviteDto {
   @IsIn(["manager", "staff"], { message: "Choose manager or staff." }) role: "manager" | "staff";
 }
 
+export class BankAccountDto {
+  @IsString() @MaxLength(80) bankName: string;
+  @IsString() @MaxLength(34) accountNumber: string;
+  @IsString() @MaxLength(100) accountName: string;
+  @IsOptional() @IsString() @MaxLength(500) instructions?: string;
+  @IsOptional() @IsString() @MaxLength(80) branch?: string;
+  @IsOptional() @IsString() @MaxLength(20) sortCode?: string;
+  @IsOptional() @IsString() @MaxLength(20) swiftCode?: string;
+  @IsOptional() @IsString() @MaxLength(34) iban?: string;
+}
+
 export class ProfileDto {
   @IsOptional() @IsString() @MaxLength(120) name?: string;
   @IsOptional() @IsString() @MaxLength(1000) description?: string;
@@ -56,7 +67,8 @@ export class ProfileDto {
   @IsOptional() @IsString() @MaxLength(80) category?: string;
   @IsOptional() @IsString() brandColor?: string;
   @IsOptional() @IsArray() @ArrayMinSize(1, { message: "Offer at least one way to pay." }) @ArrayUnique() @IsIn(["cod", "bank", "card"], { each: true, message: "Choose from pay on delivery, bank transfer or card." }) paymentMethods?: ("cod" | "bank" | "card")[];
-  @IsOptional() @IsString() @MaxLength(500) bankDetails?: string;
+  /** The account customers transfer to. Send null to remove it (only while bank transfer is switched off). */
+  @IsOptional() @ValidateIf((o) => o.bankAccount !== null) @ValidateNested() @Type(() => BankAccountDto) bankAccount?: BankAccountDto | null;
   @IsOptional() @IsIn(["NGN", "GHS", "KES", "USD"]) currency?: "NGN" | "GHS" | "KES" | "USD";
   @ValidateIf((o) => o.theme !== undefined && o.theme !== null) @IsIn(THEME_IDS as unknown as string[], { message: "Choose one of the available themes." }) theme?: string | null;
   @IsOptional() @ValidateIf((o) => o.logo !== null) @IsString() logo?: string | null;

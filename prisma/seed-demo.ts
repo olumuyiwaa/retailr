@@ -136,6 +136,8 @@ async function main() {
     data: {
       name: "Scentora", slug: SLUG, category: "Beauty & Fragrance", ownerName: "Amara Dike", ownerEmail: "demo@scentora.example", phone: "08030001000",
       country: "Nigeria", city: "Lagos", currency: "NGN", brandColor: "#8b5e3c", status: "ACTIVE", planId: plan.id,
+      paymentMethods: ["cod", "bank"],
+      bankAccount: { bankName: "Demo Bank", accountNumber: "0123456789", accountName: "Scentora Ltd", instructions: "Use your order number as the transfer reference." },
       description: "Niche and everyday fragrances, blended for the African sun. Authentic oils, long-lasting sprays and gift sets, delivered nationwide.",
       createdAt: new Date(now - 75 * DAY),
     },

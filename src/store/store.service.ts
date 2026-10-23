@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { AppError } from "../common/errors";
+import { effectiveMethods } from "../common/payment-methods";
 import { toOrder, toProduct, toPublicStore, toService } from "../common/serializers";
 import { OrderEngine } from "../orders/order-engine.service";
 import { PrismaService } from "../prisma/prisma.service";
@@ -60,7 +61,7 @@ export class StoreService {
 
   async placeOrder(slug: string, dto: PlaceOrderDto) {
     const biz = await this.live(slug);
-    if (!biz.paymentMethods.includes(dto.paymentMethod)) throw AppError.badRequest("This store doesn't accept that payment method. Please choose another.", "PAYMENT_METHOD_UNAVAILABLE");
+    if (!effectiveMethods(biz).includes(dto.paymentMethod)) throw AppError.badRequest("This store doesn't accept that payment method. Please choose another.", "PAYMENT_METHOD_UNAVAILABLE");
     // card is only "paid" once a payment provider confirms it; until one is connected that is a demo switch
     const paid = dto.paymentMethod === "card" && this.engine.demoCardPayments;
     const order = await this.engine.inTenantTransaction(biz.id, (tx) =>

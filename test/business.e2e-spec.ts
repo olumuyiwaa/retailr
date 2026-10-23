@@ -262,17 +262,48 @@ describe("Business extras", () => {
       const p = (await sx.post("/business/products", { name: "P", sku: "", category: "", description: "", price: 100, stock: 9, status: "active" }).expect(201)).body;
       const slug = (await prisma.business.findUniqueOrThrow({ where: { id: x.businessId } })).slug;
       const buy = (paymentMethod: string) => api().post(`/api/v1/store/${slug}/orders`).send({ customer: { name: "A B", email: "ab@example.com", phone: "1" }, shippingAddress: "x", paymentMethod, items: [{ productId: p.id, qty: 1 }] });
-      expect((await api().get(`/api/v1/store/${slug}`).expect(200)).body.paymentMethods).toEqual(["cod", "bank", "card"]); // existing stores keep everything
-      const r = (await sx.patch("/business/profile", { paymentMethods: ["cod", "bank"], bankDetails: "  Adire Hub, 0123456789, GTBank " }).expect(200)).body;
-      expect(r).toMatchObject({ paymentMethods: ["cod", "bank"], bankDetails: "Adire Hub, 0123456789, GTBank" });
+      expect((await api().get(`/api/v1/store/${slug}`).expect(200)).body.paymentMethods).toEqual(["cod"]); // new stores start with pay on delivery only
+      const r = (await sx.patch("/business/profile", { paymentMethods: ["cod", "bank"], bankAccount: { bankName: " GTBank ", accountNumber: "0123456789", accountName: "Adire Hub", instructions: "Use your order number" } }).expect(200)).body;
+      expect(r).toMatchObject({ paymentMethods: ["cod", "bank"], bankAccount: { bankName: "GTBank", accountNumber: "0123456789", accountName: "Adire Hub", instructions: "Use your order number" } });
       const pub = (await api().get(`/api/v1/store/${slug}`).expect(200)).body;
-      expect(pub).toMatchObject({ paymentMethods: ["cod", "bank"], bankDetails: "Adire Hub, 0123456789, GTBank" });
+      expect(pub).toMatchObject({ paymentMethods: ["cod", "bank"], bankAccount: { bankName: "GTBank", accountNumber: "0123456789", accountName: "Adire Hub" } });
       const refused = (await buy("card").expect(400)).body;
       expect(refused.code).toBe("PAYMENT_METHOD_UNAVAILABLE");
       await buy("bank").expect(201);
       await buy("cod").expect(201);
       expect((await sx.patch("/business/profile", { paymentMethods: [] }).expect(400)).body.message).toBe("Offer at least one way to pay.");
       await sx.patch("/business/profile", { paymentMethods: ["crypto"] }).expect(400);
+    });
+
+    it("only offers bank transfer once the bank details are complete, and card only in demo mode", async () => {
+      const x = await newTenant(api); const sx = S(x);
+      const code = async (body: object) => (await sx.patch("/business/profile", body).expect(400)).body.code;
+      expect(await code({ paymentMethods: ["cod", "bank"] })).toBe("BANK_DETAILS_REQUIRED");
+      expect(await code({ paymentMethods: ["bank"], bankAccount: { bankName: "GTBank", accountNumber: "0123456789", accountName: "   " } })).toBe("BANK_DETAILS_INCOMPLETE");
+      expect(await code({ bankAccount: { bankName: "GTBank", accountNumber: "12", accountName: "Adire" } })).toBe("BANK_ACCOUNT_NUMBER_INVALID");
+      expect(await code({ bankAccount: { bankName: "GTBank", accountNumber: "0123456789", accountName: "Adire", swiftCode: "x" } })).toBe("BANK_SWIFT_INVALID");
+      // details can be saved first, with the option still off
+      await sx.patch("/business/profile", { bankAccount: { bankName: "GTBank", accountNumber: "0123456789", accountName: "Adire Hub", iban: "NG00GTBK0123456789", sortCode: "058" } }).expect(200);
+      const on = (await sx.patch("/business/profile", { paymentMethods: ["bank"] }).expect(200)).body;
+      expect(on.bankAccount).toMatchObject({ iban: "NG00GTBK0123456789", sortCode: "058" });
+      // the details can't be removed while bank transfer is on
+      expect(await code({ bankAccount: null })).toBe("BANK_DETAILS_REQUIRED");
+      await sx.patch("/business/profile", { paymentMethods: ["cod"] }).expect(200);
+      await sx.patch("/business/profile", { bankAccount: null }).expect(200);
+      // a store saved with bank but no details (older data) just doesn't show it
+      await prisma.business.update({ where: { id: x.businessId }, data: { paymentMethods: ["bank", "cod"], bankAccount: undefined } });
+      const slug = (await prisma.business.findUniqueOrThrow({ where: { id: x.businessId } })).slug;
+      const pub = (await api().get(`/api/v1/store/${slug}`).expect(200)).body;
+      expect(pub.paymentMethods).toEqual(["cod"]);
+      expect(pub.bankAccount).toBeUndefined();
+      // card outside demo mode
+      const prev = process.env.DEMO_CARD_PAYMENTS;
+      process.env.DEMO_CARD_PAYMENTS = "false";
+      try {
+        expect(await code({ paymentMethods: ["cod", "card"] })).toBe("CARD_UNAVAILABLE");
+        await prisma.business.update({ where: { id: x.businessId }, data: { paymentMethods: ["card"] } });
+        expect((await api().get(`/api/v1/store/${slug}`).expect(200)).body.paymentMethods).toEqual(["cod"]);
+      } finally { process.env.DEMO_CARD_PAYMENTS = prev; }
     });
 
     it("rejects bad values and can't change protected fields", async () => {

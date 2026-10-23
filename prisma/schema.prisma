@@ -249,9 +249,12 @@ model Business {
   logoUrl            String?
   currency           Currency       @default(NGN)
   /// How shoppers may pay at checkout, chosen by the owner: any of "cod", "bank", "card"
-  paymentMethods     String[]       @default(["cod", "bank", "card"])
+  paymentMethods     String[]       @default(["cod"])
   /// Shown to shoppers who choose bank transfer (account name, number, bank)
+  /// Legacy free text, superseded by bankAccount.
   bankDetails        String         @default("")
+  /// { bankName, accountNumber, accountName, instructions?, branch?, sortCode?, swiftCode?, iban? }. Bank transfer is only offered once the first three are set.
+  bankAccount        Json?
   description        String         @default("")
   status             BusinessStatus @default(PENDING)
   /// Why a SUSPENDED business was suspended: "ADMIN" (the platform did it) or "NON_PAYMENT" (billing did; paying lifts it).

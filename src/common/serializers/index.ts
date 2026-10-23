@@ -141,6 +141,7 @@ export const toService = (s: ServiceRow) => {
 };
 
 // ---------- storefront, orders, customers ----------
+import { cardAvailable, completeBankAccount, effectiveMethods } from "../payment-methods";
 import type { Booking, Business, Customer, Order, OrderItem } from "@prisma/client";
 
 /** "classic" is the fallback theme, so every plan includes it. */
@@ -163,8 +164,8 @@ export const toPublicStore = (b: Business, plan?: { themes: string[] } | null) =
   ...((plan ? effectiveTheme(b.theme, plan.themes) : b.theme) ? { theme: plan ? effectiveTheme(b.theme, plan.themes)! : b.theme! } : {}),
   ...(b.logoUrl ? { logo: b.logoUrl } : {}),
   currency: b.currency,
-  paymentMethods: b.paymentMethods,
-  ...(b.bankDetails ? { bankDetails: b.bankDetails } : {}),
+  paymentMethods: effectiveMethods(b),
+  ...(effectiveMethods(b).includes("bank") ? { bankAccount: completeBankAccount(b.bankAccount) } : {}),
 });
 
 export const toOrder = (o: Order & { items?: OrderItem[] }, opts: { publicToken?: boolean } = {}) => ({
@@ -277,7 +278,10 @@ export const toBusiness = (b: Business, stats: { products: number; orders: numbe
   ...(b.logoUrl ? { logo: b.logoUrl } : {}),
   currency: b.currency,
   paymentMethods: b.paymentMethods,
-  bankDetails: b.bankDetails,
+  /** What shoppers actually see: the saved choice minus anything that can't work yet (card outside demo mode, bank without details). */
+  availableMethods: effectiveMethods(b),
+  cardAvailable: cardAvailable(),
+  bankAccount: (b.bankAccount as Record<string, string> | null) ?? null,
   description: b.description,
   status: lower(b.status),
   planId: b.planId,
