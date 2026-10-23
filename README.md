@@ -285,7 +285,13 @@ Webhooks are a speed-up, not the source of truth. The billing page also confirms
 - **Subdomain routing / custom domains.**
 - **Stripe adapter** for subscription billing.
 - **Deposit on booking.**
-
+- **Each business connects their own Paystack or Flutterwave account (or alternatively a subaccount under platform).**
+  ```
+  WHY:
+  
+  -Settlement goes to the seller (easier compliance story)
+  -Reconciliation is per business
+  ```
 ---
 
 ## The web app

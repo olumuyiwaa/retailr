@@ -220,7 +220,7 @@ model Plan {
   maxSmsPerMonth    Int      @default(50)
   features          String[]
   /// Storefront theme ids this plan may use ("classic" is always allowed). Set by the platform admin.
-  themes            String[] @default(["classic", "showcase", "atelier", "market", "shop"])
+  themes            String[] @default(["classic", "showcase", "atelier", "market", "shop", "bazaar"])
   highlighted       Boolean  @default(false)
   isActive          Boolean  @default(true)
   /// { "NGN": { "monthly": 9000, "yearly": 90000 }, ... } hand-set local prices

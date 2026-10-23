@@ -41,7 +41,7 @@ Invites: `GET /auth/invite/:token` previews `{ name, email, role, businessName }
 | --- | --- |
 | `GET /plans` 🌐 | Active plans (`Plan`), for the pricing page, sign-up and billing. |
 
-Each `Plan` has `themes`: the storefront theme ids it includes (`classic` is always there). The platform admin sets them in `PUT /platform/plans/:id` (`themes: string[]`, validated against `classic | showcase | atelier | market`; omitted = all). `PATCH /business/profile` with a theme outside the plan returns 403 `THEME_NOT_IN_PLAN`; after a downgrade the public storefront renders the default theme (no `theme` in the response) until the business upgrades or picks an included one.
+Each `Plan` has `themes`: the storefront theme ids it includes (`classic` is always there). The platform admin sets them in `PUT /platform/plans/:id` (`themes: string[]`, validated against `classic | showcase | atelier | market | shop | bazaar`; omitted = all). `PATCH /business/profile` with a theme outside the plan returns 403 `THEME_NOT_IN_PLAN`; after a downgrade the public storefront renders the default theme (no `theme` in the response) until the business upgrades or picks an included one.
 | `POST /plan-coupons/validate` 🌐 | `{ code, planId }` → `PlanCoupon` or an error. Business-restricted codes only validate for that business (send the token when logged in). |
 | `GET /store/:slug` 🌐 | `PublicStore` (`id, name, slug, category, description, phone, city, country, brandColor, theme, logo, currency, paymentMethods, bankAccount?`). 404 "This store isn't available right now." unless the business is `ACTIVE` or `TRIAL`. |
 | `GET /store/:slug/products` 🌐 | Non-draft products (sold-out ones stay visible but can't be bought), with images, variants and specs. |
