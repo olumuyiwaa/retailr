@@ -202,7 +202,7 @@ export class BookingsService {
   // ---------- the customer's own link ----------
 
   async byToken(token: string) {
-    const b = await this.prisma.booking.findUnique({ where: { publicToken: token }, include: { business: { include: { plan: { select: { themes: true } } } } } });
+    const b = await this.prisma.booking.findUnique({ where: { publicToken: token }, include: { business: { include: { plan: { select: { themes: true, priceMonthly: true } } } } } });
     if (!b) throw AppError.notFound("Booking not found.");
     return { booking: toBooking(b, { publicToken: true, timezone: b.business.timezone }), store: toPublicStore(b.business, b.business.plan) };
   }

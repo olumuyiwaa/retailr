@@ -15,7 +15,7 @@ export class StoreService {
 
   /** Only businesses that are live (active or on trial) have a public store. */
   private async live(slug: string) {
-    const biz = await this.prisma.business.findUnique({ where: { slug: slug.toLowerCase() }, include: { plan: { select: { themes: true } } } });
+    const biz = await this.prisma.business.findUnique({ where: { slug: slug.toLowerCase() }, include: { plan: { select: { themes: true, priceMonthly: true } } } });
     if (!biz || (biz.status !== "ACTIVE" && biz.status !== "TRIAL")) throw AppError.notFound(UNAVAILABLE, "STORE_UNAVAILABLE");
     return biz;
   }
@@ -70,7 +70,7 @@ export class StoreService {
         customer: { name: dto.customer.name, email: dto.customer.email, phone: dto.customer.phone },
         channel: "ONLINE", paymentMethod: dto.paymentMethod.toUpperCase() as never,
         status: "PENDING", paymentStatus: paid ? "PAID" : "UNPAID",
-        couponCode: dto.couponCode, shippingAddress: dto.shippingAddress, notes: dto.notes,
+        couponCode: dto.couponCode, shippingAddress: dto.shippingAddress, delivery: { method: dto.deliveryMethod, zoneId: dto.deliveryZoneId }, notes: dto.notes,
       }),
     );
     // tell the team (never holds up or fails the shopper's order)
@@ -81,7 +81,7 @@ export class StoreService {
 
   /** The confirmation and invoice pages: found by an unguessable token, not the order id. */
   async orderByToken(token: string) {
-    const order = await this.prisma.order.findUnique({ where: { publicToken: token }, include: { items: true, business: { include: { plan: { select: { themes: true } } } } } });
+    const order = await this.prisma.order.findUnique({ where: { publicToken: token }, include: { items: true, business: { include: { plan: { select: { themes: true, priceMonthly: true } } } } } });
     if (!order) throw AppError.notFound("Order not found.");
     return { order: toOrder(order, { publicToken: true }), store: toPublicStore(order.business, order.business.plan) };
   }

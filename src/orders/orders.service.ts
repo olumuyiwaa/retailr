@@ -79,7 +79,7 @@ export class OrdersService {
     try {
       await this.mail.send(receiptMail(o.customerEmail, {
         business: biz.name, currency: biz.currency,
-        order: { number: o.number, placedAt: o.placedAt, customerName: o.customerName, items: o.items.map((i) => ({ name: i.name, qty: i.qty, price: Number(i.price) })), subtotal: Number(o.subtotal), discount: Number(o.discount), total: Number(o.total), paymentStatus: o.paymentStatus.toLowerCase(), shippingAddress: o.shippingAddress },
+        order: { number: o.number, placedAt: o.placedAt, customerName: o.customerName, items: o.items.map((i) => ({ name: i.name, qty: i.qty, price: Number(i.price) })), subtotal: Number(o.subtotal), discount: Number(o.discount), shippingFee: Number(o.shippingFee), total: Number(o.total), paymentStatus: o.paymentStatus.toLowerCase(), shippingAddress: o.shippingAddress },
         viewUrl: `${this.mail.appUrl}/s/${biz.slug}/order/${o.publicToken}`,
       }));
     } catch {

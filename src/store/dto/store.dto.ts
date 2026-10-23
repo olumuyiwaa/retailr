@@ -20,7 +20,10 @@ export class CheckoutCustomerDto {
 
 export class PlaceOrderDto {
   @ValidateNested() @Type(() => CheckoutCustomerDto) customer: CheckoutCustomerDto;
-  @Transform(trim) @IsString() @Length(1, 500, { message: "Please enter your delivery address." }) shippingAddress: string;
+  /** Required unless the shopper picks pickup; checked in the order engine. */
+  @IsOptional() @Transform(trim) @IsString() @MaxLength(500) shippingAddress?: string;
+  @IsOptional() @IsIn(["delivery", "pickup"]) deliveryMethod?: "delivery" | "pickup";
+  @IsOptional() @IsString() @MaxLength(60) deliveryZoneId?: string;
   @IsOptional() @IsString() @MaxLength(1000) notes?: string;
   @IsIn(["cod", "bank", "card"], { message: "Choose how you'd like to pay." }) paymentMethod: "cod" | "bank" | "card";
   @IsOptional() @IsString() @MaxLength(30) couponCode?: string;

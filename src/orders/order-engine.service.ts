@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { DeliveryChoice, priceDelivery } from "../common/delivery";
 import { ConfigService } from "@nestjs/config";
 import { Prisma, PaymentMethod, SalesChannel, OrderStatus, PaymentStatus } from "@prisma/client";
 import { AppError } from "../common/errors";
@@ -26,6 +27,8 @@ export interface NewOrder {
   /** Flat amount off, recorded sales only. */
   flatDiscount?: number;
   shippingAddress?: string;
+  /** Storefront only: which delivery option the shopper picked. */
+  delivery?: DeliveryChoice;
   notes?: string;
 }
 
@@ -163,7 +166,11 @@ export class OrderEngine {
       discount = D(o.flatDiscount);
       if (discount.gt(subtotal)) throw AppError.badRequest("The discount can't be more than the sale total.");
     }
-    const total = cents(subtotal.sub(discount));
+    const net = subtotal.sub(discount);
+    const ship = o.source === "store" ? priceDelivery(biz.delivery, biz.plan, o.delivery ?? {}, net.toNumber()) : null;
+    if (ship?.method === "delivery" && !o.shippingAddress?.trim()) throw AppError.badRequest("Please enter your delivery address.", "ADDRESS_REQUIRED");
+    const shippingFee = D(ship?.fee ?? 0);
+    const total = cents(net.add(shippingFee));
 
     const customer = await this.resolveCustomer(tx, o);
 
@@ -190,6 +197,7 @@ export class OrderEngine {
         status: o.status,
         paymentStatus: o.paymentStatus,
         subtotal, discount, total, couponCode: couponCode ?? null,
+        shippingFee, deliveryMethod: ship?.method ?? null, deliveryZone: ship?.zone ?? null,
         items: { create: resolved.map((r) => ({ productId: r.product?.id ?? null, variantId: r.variant?.id ?? null, serviceId: r.service?.id ?? null, optionId: r.option?.id ?? null, name: r.label, qty: r.qty, price: r.price })) },
       } as never,
       include: { items: true },

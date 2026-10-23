@@ -255,6 +255,8 @@ model Business {
   bankDetails        String         @default("")
   /// { bankName, accountNumber, accountName, instructions?, branch?, sortCode?, swiftCode?, iban? }. Bank transfer is only offered once the first three are set.
   bankAccount        Json?
+  /// { pickup: {enabled,address,hours?,instructions?}, zones: [{id,kind,name,fee,note?}], freeShippingThreshold, note }. Null = no delivery options set up.
+  delivery           Json?
   description        String         @default("")
   status             BusinessStatus @default(PENDING)
   /// Why a SUSPENDED business was suspended: "ADMIN" (the platform did it) or "NON_PAYMENT" (billing did; paying lifts it).
@@ -663,9 +665,14 @@ model Order {
   paymentStatus   PaymentStatus  @default(UNPAID)
   subtotal        Decimal        @db.Decimal(12, 2)
   discount        Decimal        @default(0) @db.Decimal(12, 2)
-  /// subtotal - discount
+  /// subtotal - discount + shippingFee
   total           Decimal        @db.Decimal(12, 2)
   couponCode      String?
+  /// "delivery" or "pickup"; null on orders from before delivery options existed.
+  deliveryMethod  String?
+  /// Name of the zone chosen at checkout (snapshot).
+  deliveryZone    String?
+  shippingFee     Decimal        @default(0) @db.Decimal(12, 2)
   receiptSentAt   DateTime?
   /// Unguessable token for the public confirmation/invoice link (the mock uses the order id, which is guessable).
   publicToken     String         @unique @default(cuid())

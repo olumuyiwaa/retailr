@@ -1,5 +1,5 @@
 import { Type } from "class-transformer";
-import { ArrayMinSize, ArrayUnique, IsArray, IsBoolean, IsDefined, IsEmail, IsIn, IsInt, IsNumber, IsObject, IsOptional, IsString, MaxLength, Min, ValidateIf, ValidateNested } from "class-validator";
+import { ArrayMaxSize, ArrayMinSize, ArrayUnique, IsArray, IsBoolean, IsDefined, IsEmail, IsIn, IsInt, IsNumber, IsObject, IsOptional, IsString, MaxLength, Min, ValidateIf, ValidateNested } from "class-validator";
 
 export const THEME_IDS = ["classic", "showcase", "atelier", "market", "shop", "bazaar"] as const;
 
@@ -58,6 +58,26 @@ export class BankAccountDto {
   @IsOptional() @IsString() @MaxLength(34) iban?: string;
 }
 
+export class DeliveryZoneDto {
+  @IsOptional() @IsString() @MaxLength(60) id?: string;
+  @IsIn(["local", "international"]) kind: "local" | "international";
+  @IsString() @MaxLength(100) name: string;
+  @IsNumber({}, { message: "Enter a valid delivery fee." }) @Min(0) fee: number;
+  @IsOptional() @IsString() @MaxLength(300) note?: string;
+}
+export class PickupDto {
+  @IsBoolean() enabled: boolean;
+  @IsOptional() @IsString() @MaxLength(300) address?: string;
+  @IsOptional() @IsString() @MaxLength(200) hours?: string;
+  @IsOptional() @IsString() @MaxLength(500) instructions?: string;
+}
+export class DeliveryDto {
+  @ValidateNested() @Type(() => PickupDto) pickup: PickupDto;
+  @IsArray() @ArrayMaxSize(100) @ValidateNested({ each: true }) @Type(() => DeliveryZoneDto) zones: DeliveryZoneDto[];
+  @IsOptional() @IsNumber() @Min(0) freeShippingThreshold?: number | null;
+  @IsOptional() @IsString() @MaxLength(300) note?: string;
+}
+
 export class ProfileDto {
   @IsOptional() @IsString() @MaxLength(120) name?: string;
   @IsOptional() @IsString() @MaxLength(1000) description?: string;
@@ -69,6 +89,7 @@ export class ProfileDto {
   @IsOptional() @IsArray() @ArrayMinSize(1, { message: "Offer at least one way to pay." }) @ArrayUnique() @IsIn(["cod", "bank", "card"], { each: true, message: "Choose from pay on delivery, bank transfer or card." }) paymentMethods?: ("cod" | "bank" | "card")[];
   /** The account customers transfer to. Send null to remove it (only while bank transfer is switched off). */
   @IsOptional() @ValidateIf((o) => o.bankAccount !== null) @ValidateNested() @Type(() => BankAccountDto) bankAccount?: BankAccountDto | null;
+  @IsOptional() @ValidateNested() @Type(() => DeliveryDto) delivery?: DeliveryDto;
   @IsOptional() @IsIn(["NGN", "GHS", "KES", "USD"]) currency?: "NGN" | "GHS" | "KES" | "USD";
   @ValidateIf((o) => o.theme !== undefined && o.theme !== null) @IsIn(THEME_IDS as unknown as string[], { message: "Choose one of the available themes." }) theme?: string | null;
   @IsOptional() @ValidateIf((o) => o.logo !== null) @IsString() logo?: string | null;

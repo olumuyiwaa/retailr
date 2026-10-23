@@ -142,6 +142,7 @@ export const toService = (s: ServiceRow) => {
 
 // ---------- storefront, orders, customers ----------
 import { cardAvailable, completeBankAccount, effectiveMethods } from "../payment-methods";
+import { paidPlan, publicDelivery, readDelivery } from "../delivery";
 import type { Booking, Business, Customer, Order, OrderItem } from "@prisma/client";
 
 /** "classic" is the fallback theme, so every plan includes it. */
@@ -151,7 +152,7 @@ export const allowedThemes = (themes: string[] | null | undefined) => ["classic"
 export const effectiveTheme = (theme: string | null | undefined, planThemes: string[] | null | undefined) =>
   theme && allowedThemes(planThemes).includes(theme) ? theme : null;
 
-export const toPublicStore = (b: Business, plan?: { themes: string[] } | null) => ({
+export const toPublicStore = (b: Business, plan?: { themes: string[]; priceMonthly?: unknown } | null) => ({
   id: b.id,
   name: b.name,
   slug: b.slug,
@@ -166,6 +167,7 @@ export const toPublicStore = (b: Business, plan?: { themes: string[] } | null) =
   currency: b.currency,
   paymentMethods: effectiveMethods(b),
   ...(effectiveMethods(b).includes("bank") ? { bankAccount: completeBankAccount(b.bankAccount) } : {}),
+  delivery: publicDelivery(b.delivery, plan ?? null),
 });
 
 export const toOrder = (o: Order & { items?: OrderItem[] }, opts: { publicToken?: boolean } = {}) => ({
@@ -194,6 +196,9 @@ export const toOrder = (o: Order & { items?: OrderItem[] }, opts: { publicToken?
   ...(o.paymentMethod ? { paymentMethod: lower(o.paymentMethod) } : {}),
   channel: lower(o.channel),
   ...(o.couponCode ? { couponCode: o.couponCode } : {}),
+  ...(o.deliveryMethod ? { deliveryMethod: o.deliveryMethod } : {}),
+  ...(o.deliveryZone ? { deliveryZone: o.deliveryZone } : {}),
+  shippingFee: num(o.shippingFee),
   ...(num(o.discount) > 0 ? { discount: num(o.discount) } : {}),
   ...(o.receiptSentAt ? { receiptSentAt: iso(o.receiptSentAt) } : {}),
   ...(opts.publicToken ? { publicToken: o.publicToken } : {}),
@@ -263,7 +268,7 @@ export const toTeamMember = (t: TeamMember) => ({
   joinedAt: iso(t.createdAt)!,
 });
 
-export const toBusiness = (b: Business, stats: { products: number; orders: number; customers: number; revenue: number }) => ({
+export const toBusiness = (b: Business, stats: { products: number; orders: number; customers: number; revenue: number }, plan?: { priceMonthly: unknown } | null) => ({
   id: b.id,
   name: b.name,
   slug: b.slug,
@@ -282,6 +287,8 @@ export const toBusiness = (b: Business, stats: { products: number; orders: numbe
   availableMethods: effectiveMethods(b),
   cardAvailable: cardAvailable(),
   bankAccount: (b.bankAccount as Record<string, string> | null) ?? null,
+  delivery: readDelivery(b.delivery),
+  canSetFreeShipping: paidPlan(plan),
   description: b.description,
   status: lower(b.status),
   planId: b.planId,
