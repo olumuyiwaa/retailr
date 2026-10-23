@@ -42,11 +42,42 @@ export class PaymentsService {
     @Optional() @Inject(PAYMENT_PROVIDERS) readonly providers: PaymentProvider[] = [],
   ) {}
 
-  /** The default provider: the first one enabled. */
-  get provider(): PaymentProvider | null { return this.providers[0] ?? null; }
+  /**
+   * `providers` is every provider whose keys are configured on the server (environment). The super admin chooses, in the UI, which of
+   * them new payments go through and which is the default; payments already started, webhooks and card renewals keep using whichever
+   * provider they began with, so switching never strands a customer.
+   */
   get enabled() { return this.providers.length > 0; }
-  /** `null` for a name that isn't switched on (including payments being off). */
+  /** Any configured provider by name (for webhooks, confirming a payment, renewals). */
   byName(name: string | null | undefined): PaymentProvider | null { return this.providers.find((p) => p.name === name) ?? null; }
+
+  /** What the super admin chose, limited to what is configured. Until they choose, every configured provider is on and the first is the default. */
+  async selection(): Promise<{ enabled: string[]; default: string | null }> {
+    const names = this.providers.map((p) => p.name);
+    const row = await this.prisma.platformSetting.findUnique({ where: { key: "payments" } });
+    const v = (row?.value ?? {}) as { enabled?: string[]; default?: string };
+    const enabled = Array.isArray(v.enabled) ? names.filter((n) => v.enabled!.includes(n)) : names;
+    const live = enabled.length ? enabled : names; // never leave a configured server with no way to pay
+    return { enabled: live, default: v.default && live.includes(v.default) ? v.default : live[0] ?? null };
+  }
+
+  /** The providers a business may pay through right now, default first. */
+  async active(): Promise<PaymentProvider[]> {
+    const c = await this.selection();
+    return [...c.enabled].sort((a) => (a === c.default ? -1 : 1)).map((n) => this.byName(n)!).filter(Boolean);
+  }
+
+  /** (Changes under /platform are written to the audit log by the audit interceptor.) */
+  async setConfig(enabled: string[], def: string) {
+    const names = this.providers.map((p) => p.name);
+    const clean = [...new Set(enabled)];
+    if (!clean.length) throw AppError.badRequest("Keep at least one payment provider switched on.", "PROVIDER_REQUIRED");
+    const unknown = clean.filter((n) => !names.includes(n));
+    if (unknown.length) throw AppError.badRequest(`${unknown.join(", ")} isn't set up on the server. Add its keys to the environment first.`, "PROVIDER_NOT_CONFIGURED");
+    if (!clean.includes(def)) throw AppError.badRequest("The default provider must be one of the switched-on providers.", "DEFAULT_NOT_ENABLED");
+    await this.prisma.platformSetting.upsert({ where: { key: "payments" }, create: { key: "payments", value: { enabled: clean, default: def } }, update: { value: { enabled: clean, default: def } } });
+    return this.selection();
+  }
 
   // ---------- pricing ----------
 
@@ -63,7 +94,8 @@ export class PaymentsService {
 
   async checkout(businessId: string, planId: string, cycleIn: "monthly" | "yearly", couponCode?: string, providerName?: string): Promise<CheckoutResult> {
     if (!this.enabled) throw AppError.badRequest("Online payments aren't switched on yet.", "PAYMENTS_OFF");
-    const provider = providerName ? this.byName(providerName) : this.provider;
+    const active = await this.active();
+    const provider = providerName ? active.find((p) => p.name === providerName) : active[0];
     if (!provider) throw AppError.badRequest(`Payments through "${providerName}" aren't available.`, "PROVIDER_UNAVAILABLE");
     const cycle: BillingCycle = cycleIn === "yearly" ? "YEARLY" : "MONTHLY";
     const plan = await this.prisma.plan.findFirst({ where: { id: planId, isActive: true } });

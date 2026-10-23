@@ -26,6 +26,11 @@ export class LimitsDto {
   @IsNumber() storageGb: number;
   @IsOptional() @IsNumber() smsPerMonth?: number;
 }
+export class PaymentProvidersDto {
+  @IsArray() @ArrayMaxSize(10) @IsString({ each: true }) enabled: string[];
+  @IsString() default: string;
+}
+
 export class PlanDto {
   @IsString({ message: "Enter a plan name." }) @MaxLength(60) name: string;
   @IsOptional() @IsString() @MaxLength(300) description?: string;

@@ -210,6 +210,8 @@ In code: `@MinRole("MANAGER")` on a route or controller (the method wins over th
 
 ## Subscription payments (Paystack, Flutterwave)
 
+**Choosing providers from the UI.** `PAYMENTS_DRIVER` says which providers are *set up on the server* (their keys live in the environment, never in the database). The super admin then chooses, under Platform settings, which of those are switched on for new payments and which is the default: `GET /platform/payment-providers` → `{ paymentsEnabled, providers: [{ name, label, configured, enabled, isDefault, requiredEnv }] }`, `PUT /platform/payment-providers` with `{ enabled: ["paystack","flutterwave"], default }` (stored in `PlatformSetting` key `payments`; errors 400 `PROVIDER_REQUIRED`, `PROVIDER_NOT_CONFIGURED`, `DEFAULT_NOT_ENABLED`). Until they choose, every configured provider is on and the first is the default. Switching only affects new checkouts: a payment already started, its webhook, and card renewals always go back through the provider that took the money, even if it has since been switched off.
+
 Switched on with `PAYMENTS_DRIVER=paystack` (needs `PAYSTACK_SECRET_KEY`), `flutterwave` (needs `FLUTTERWAVE_SECRET_KEY` and `FLUTTERWAVE_SECRET_HASH`) or both, comma separated: `paystack,flutterwave`. The first listed is the default. Each invoice and each saved card remembers its provider, so confirmations, webhooks and renewals always go back through the one that took the payment. With `none` (the default) plan changes apply directly, as before. `fake` and `fake-flutterwave` are in-memory providers for tests and local work and are refused in production.
 
 | Endpoint | Notes |
@@ -220,7 +222,7 @@ Switched on with `PAYMENTS_DRIVER=paystack` (needs `PAYSTACK_SECRET_KEY`), `flut
 | `POST /webhooks/flutterwave` 🌐 | Flutterwave has no body signature: it sends back the secret hash you configured in the `verif-hash` header, compared in constant time. Only `charge.completed` is acted on, and only after asking Flutterwave about `tx_ref`. Wrong or missing hash, or an unknown provider name → 401. |
 | `POST /business/billing/change-plan` | When payments are on, a paid target plan returns 402 `PAYMENT_REQUIRED` (use checkout). Free plans still switch directly and drop the saved card. |
 
-`GET /business/billing` also returns `payments: { enabled, provider (default), providers (all enabled), cardOnFile }`.
+`GET /business/billing` also returns `payments: { enabled, provider (default), providers (switched on by the super admin), cardOnFile }`.
 
 Flutterwave notes: it works in major units (naira), our code in minor units, so amounts are converted at the edge. Token charges can come back pending (the bank wants 3-D Secure); the stale-payment job asks again, and a renewal still undecided after 24 h is marked `FAILED` and the subscription `PAST_DUE`, so the daily retry can start a fresh attempt.
 

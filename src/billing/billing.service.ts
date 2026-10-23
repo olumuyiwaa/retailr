@@ -29,7 +29,7 @@ export class BillingService {
       plan: toPlan(p),
       ...(sub ? { subscription: toSubscription(sub) } : {}),
       /** Whether the page should send people through checkout to pay, and whether a card is saved for renewals. */
-      payments: { enabled: this.payments.enabled, provider: this.payments.provider?.name ?? null, providers: this.payments.providers.map((p) => p.name), cardOnFile: !!sub?.providerAuthorization },
+      payments: { enabled: this.payments.enabled, ...(await this.payments.selection().then((c) => ({ provider: c.default, providers: c.enabled }))), cardOnFile: !!sub?.providerAuthorization },
       usage: {
         products: { used: products, limit: p.maxProducts },
         staff: { used: staff, limit: p.maxStaff },

@@ -888,3 +888,11 @@ model PushSubscription {
 
   @@index([userId])
 }
+
+/// Platform-wide switches the super admin changes from the UI (not secrets: API keys stay in the environment).
+/// key "payments": { "enabled": ["paystack", "flutterwave"], "default": "paystack" }
+model PlatformSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
