@@ -282,7 +282,7 @@ Webhooks are a speed-up, not the source of truth. The billing page also confirms
 ## Not done yet
 
 - **Online card payments at storefront checkout** — the `DEMO_CARD_PAYMENTS=true` flag makes card orders count as paid immediately. Real shopper card payments (Paystack Inline, Flutterwave Inline, or a third provider) are not yet integrated.
-- **Delivery fees and zones** — the data model and profile API support delivery zones and a free-shipping threshold, but platform-managed courier integrations (e.g. Shipbubble) are not built. Each merchant would connect their own account and wallet.
+- **Courier integrations** — delivery zones, international shipping, store pickup and a paid-plan free-shipping threshold are built (see `Business.delivery`). Connecting couriers such as Shipbubble or Fez, with order sync and booking, is not. Each merchant would connect their own account.
 - **Customer accounts** for shoppers (saved addresses, order history) — guest checkout is the default today.
 - **Subdomain routing / custom domains.**
 - **Stripe adapter** for subscription billing.
