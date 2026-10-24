@@ -281,6 +281,10 @@ Webhooks are a speed-up, not the source of truth. The billing page also confirms
 
 - **Online card payments at storefront checkout** — the `DEMO_CARD_PAYMENTS=true` flag makes card orders count as paid immediately. Real shopper card payments (Paystack Inline, Flutterwave Inline, or a third provider) are not yet integrated.
 - **Delivery fees and zones.**
+  ```
+  shipping not handle by the platform, should just show the cost of delivery if possible
+  Merchant-owned Shipbubble (each store connects own key + wallet)
+  ```
 - **Customer accounts** for shoppers (saved addresses, order history) — guest checkout is the default today.
 - **Subdomain routing / custom domains.**
 - **Stripe adapter** for subscription billing.
