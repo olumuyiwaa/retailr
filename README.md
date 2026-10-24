@@ -199,9 +199,11 @@ Enums go out lower-case (`OUT_OF_STOCK` → `"out_of_stock"`), decimals go out a
 
 ### Storefront themes
 
-The `Plan.themes` array lists the storefront theme ids a plan includes (`classic` is always present). `PATCH /business/profile` with a theme id outside that list returns `403 THEME_NOT_IN_PLAN`. The platform admin sets `themes` per plan via `PUT /platform/plans/:id`.
+Six themes ship: `classic`, `showcase`, `atelier`, `market`, `shop`, `bazaar`. The `Plan.themes` array lists the theme ids a plan includes (`classic` is always present). `PATCH /business/profile` with a theme id outside that list returns `403 THEME_NOT_IN_PLAN`. The platform admin sets `themes` per plan via `PUT /platform/plans/:id`.
 
 The theme id is also validated against `THEME_IDS` in `src/business/dto/business.dto.ts`. When adding a new theme, update both that constant and the `Plan.themes` default in `prisma/schema.prisma`.
+
+All themes share the same maximum content width (`1680 px`) and responsive horizontal padding (`px-5 sm:px-8 lg:px-12 2xl:px-20`) via the `.store-container` utility class in the frontend. This is a layout contract — theme components must not override it with a narrower or wider container.
 
 ---
 
@@ -280,22 +282,12 @@ Webhooks are a speed-up, not the source of truth. The billing page also confirms
 ## Not done yet
 
 - **Online card payments at storefront checkout** — the `DEMO_CARD_PAYMENTS=true` flag makes card orders count as paid immediately. Real shopper card payments (Paystack Inline, Flutterwave Inline, or a third provider) are not yet integrated.
-- **Delivery fees and zones.**
-  ```
-  shipping not handle by the platform, should just show the cost of delivery if possible
-  Merchant-owned Shipbubble (each store connects own key + wallet)
-  ```
+- **Delivery fees and zones** — the data model and profile API support delivery zones and a free-shipping threshold, but platform-managed courier integrations (e.g. Shipbubble) are not built. Each merchant would connect their own account and wallet.
 - **Customer accounts** for shoppers (saved addresses, order history) — guest checkout is the default today.
 - **Subdomain routing / custom domains.**
 - **Stripe adapter** for subscription billing.
 - **Deposit on booking.**
-- **Each business connects their own Paystack or Flutterwave account (or alternatively a subaccount under platform).**
-  ```
-  WHY:
-  
-  -Settlement goes to the seller (easier compliance story)
-  -Reconciliation is per business
-  ```
+- **Per-business payment provider accounts** — today the platform collects subscription payments through the platform's provider keys. Each business connecting their own Paystack/Flutterwave account (or a sub-account) for storefront card payments is not yet built.
 ---
 
 ## The web app

@@ -2,6 +2,23 @@
 
 What the Next.js app needs to do when it moves from the mock services to this API. Endpoint details are in `API.md`.
 
+## Storefront themes
+
+Six themes ship: `classic`, `showcase`, `atelier`, `market`, `shop`, `bazaar`. All six use the same maximum content width (`1680 px`, via `.store-container`) and the same responsive horizontal padding (`px-5 sm:px-8 lg:px-12 2xl:px-20`). Theme-specific layout components must not override the container width or padding — this keeps the layout feel consistent when a business switches themes.
+
+Themes are gated per plan. After a downgrade to a plan that doesn't include the active theme, the storefront falls back to `classic` until the business picks a supported theme.
+
+| Theme | id | Style |
+|---|---|---|
+| Classic | `classic` | Soft, rounded, brand-colour driven |
+| Showcase | `showcase` | Marketplace grid with search bar and category strip |
+| Atelier | `atelier` | Warm editorial boutique, cream & brown |
+| Market | `market` | Bold navy header, red accents, dense grid |
+| Shop | `shop` | Clean white, pill category strip |
+| Bazaar | `bazaar` | Wholesale marketplace, orange search bar, dense product grid |
+
+---
+
 ## 1. Subscribing to a paid plan
 
 When `GET /business/billing` returns `payments.enabled: true`, `change-plan` refuses paid plans (402 `PAYMENT_REQUIRED`). Use checkout instead.
